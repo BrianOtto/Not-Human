@@ -77,6 +77,8 @@ all hot fn `@njit`. entry `_generate` @ `terrain.py:386`, runs on thread pool
 
 tree/rock placed after. cross chunk tree queue in `pending_decorations` -> floating trunk thing
 
+biomes: `plains`, `desert`, `snowy`, `jungle`, `badlands`, `forest`
+
 
 ## chunk threading
 
