@@ -699,22 +699,27 @@ class VoxelWorld:
             vx, vy, vz = self.p.getvel()
             flight = "Flying" if self.p.is_flying else "Walking"
             chx, chz = self.p.chunkpos(CHUNK_SZ)
-            look = f"({targetb[0]}, {targetb[1]}, {targetb[2]})" if targetb else "None"
-            baf = self.chunker.getblock(int(fx), int(fy), int(fz))
-            bn = {
-                0:"Air",
-                1:"Grass",
-                2:"Dirt",
-                3:"Stone",
-                4:"Bedrock",
-                5:"Water",
-                6:"Sand",
-                7:"Log",
-                8:"Oak Leaves",
-                9:"Spruce Leaves",
-                10:"Tall Grass"
-            }.get(baf, f"Block {baf}")
+            baf  = 0
+            look = "None"
+            if targetb:
+                tx, ty, tz = int(targetb[0]), int(targetb[1]), int(targetb[2])
+                c = self.chunker.chunks.get((tx // CHUNK_SZ, tz // CHUNK_SZ))
+                if c and c.gen_ready:
+                    lx, lz = tx - c.offset_x, tz - c.offset_z
+                    if 0 <= lx < CHUNK_SZ and 0 <= lz < CHUNK_SZ and 0 <= ty < CHUNK_H:
+                        baf = c.voxels[lx, ty, lz]
             
+            bid   = baf & 0x3FF
+            state = (baf >> 10) & 0x1F
+            pmade = (baf >> 15) & 1
+
+            from items.registry import REGISTRY
+            bn = REGISTRY.get(bid)
+            if not bn or bid == 0: targetb = False
+            else: bn = bn.nm
+            
+            if targetb:
+                look = f"{bn} {{st:{state}, pm:{pmade}}} ({tx}, {ty}, {tz})"
             
             ll = 0
             if targetb and targetf:
@@ -723,8 +728,6 @@ class VoxelWorld:
                     targetb[1]+targetf[1], 
                     targetb[2]+targetf[2]
                 )
-                
-                
 
             yaw, pitch  = self.p.cam.yaw, self.p.cam.pitch
             yn   = yaw % 360
@@ -739,8 +742,6 @@ class VoxelWorld:
             if self.is_client and self.netclient and self.netclient.isconn():
                 si, sip = "Connected", f"Server: {self.netclient.host}:{self.netclient.port}"
                 
-                
-                
             bid  = get_biome(fx, fz, self.chunker.world.noise.p)
             bnm  = BIOME_NAMES[bid] if 0 <= bid < len(BIOME_NAMES) else "Unknown"
             
@@ -750,7 +751,6 @@ class VoxelWorld:
                      f"Facing: {fdir} (yaw={yaw:.0f})",
                      f"Chunk: ({chx}, {chz})",
                      f"Biome: {bnm}",
-                     f"Block: {bn}", 
                      f"Looking at: {look}", 
                      f"Light: {ll}", "",
                      f"Velocity: ({vx:.2f}, {vy:.2f}, {vz:.2f})", 
@@ -764,7 +764,6 @@ class VoxelWorld:
                      f"Server: {si}", 
                      sip,
             ]
-            # TODO look var not working
             
             gst = "ON" if self.gamma_shader.enabled else "OFF"
             keybinds = [
