@@ -61,6 +61,14 @@ class HUDManager:
         
 
 
+    def resize(self, w, h):
+        self.screen_sz    = (w, h)
+        self.surface      = pygame.Surface((w, h), pygame.SRCALPHA)
+        self.texture.release()
+        self.texture      = self.ctx.texture((w, h), 4)
+        self.texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
+        self.texture_valid = False
+
     def extracticon(self, col, row):
         x = self.ico_pivot[0] + col * self.ico_sz
         y = self.ico_pivot[1] + row * self.ico_sz

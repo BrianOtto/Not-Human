@@ -1,5 +1,6 @@
 import pygame
 import threading
+import time
 from pygame.locals import *
 from config import SCL_HUD, WIN_W, WIN_H
 from entity.blockenty import itemblock
@@ -11,6 +12,13 @@ SCRL_DW = 5
 def onEvent(w, events):
     for i in events:
         if i.type == QUIT: return False
+
+        if i.type == KEYDOWN and i.key == K_TAB:
+            w.tabdown = True
+            continue
+        if i.type == KEYUP and i.key == K_TAB:
+            w.tabdown = False
+            continue
 
         if w.onchat:
             if i.type == KEYDOWN:
@@ -39,7 +47,7 @@ def onEvent(w, events):
                 elif i.key == K_BACKSPACE:  
                     w.ibuff = w.ibuff[:-1]
                 
-            elif i.type == TEXTINPUT: 
+            elif i.type == TEXTINPUT:
                 w.ibuff += i.text
 
 
@@ -60,13 +68,16 @@ def onEvent(w, events):
 
 
 
-        if i.type == KEYDOWN:
-            if i.key == K_t and not w.oninv:
+        if i.type == KEYUP:
+            if i.key == K_t and not w.oninv and not w.onchat:
                 w.onchat = True
-                w.ibuff = ""
+                w.ibuff  = ""
                 pygame.event.set_grab(False)
                 pygame.mouse.set_visible(True)
                 continue
+
+        if i.type == KEYDOWN:
+            if i.key == K_t: continue
                 
                 
             if i.key == K_SLASH and not w.oninv:
@@ -96,24 +107,39 @@ def onEvent(w, events):
                         pygame.mouse.set_visible(True)
 
             elif i.key == K_F1 and not w.oninv:
-                grabbed = pygame.event.get_grab()
-                pygame.event.set_grab(not grabbed)
-                pygame.mouse.set_visible(grabbed)
-                
+                new = not w.showhud
+                w.showhud   = new
+                w.showdebug = new
+
             elif i.key == K_F2:
                 pygame.image.save(w.screen, f"shot_{int(time.time())}.png")
-            
-            elif i.key == K_p and not w.oninv:
+
+            elif i.key == K_F3 and not w.oninv:
                 w.showborder = not w.showborder
                 w.ui.chatmsg(f"Chunk Borders: {'ON' if w.showborder else 'OFF'}", color=(200, 200, 255))
-            elif i.key == K_g and not w.oninv:
+
+            elif i.key == K_F4 and not w.oninv:
                 enabled = w.gamma_shader.toggle()
                 w.ui.chatmsg(f"Gamma: {'ON' if enabled else 'OFF'}", color=(255, 255, 150))
 
-            elif i.key == K_l and not w.oninv:
+            elif i.key == K_F5 and not w.oninv:
                 w.p.togglecam()
                 modes = ["First", "Third Back", "Third Front", "Orbital"]
                 w.ui.chatmsg(f"Camera: {modes[w.p.cmode]}", color=(200, 200, 255))
+
+            elif i.key == K_F11 and not w.oninv:
+                w._fs = not w._fs
+                pygame.display.toggle_fullscreen()
+                sw, sh       = pygame.display.get_window_size()
+                w._scrw, w._scrh = sw, sh
+                w.ctx.viewport   = (0, 0, sw, sh)
+                if w.gamma_shader: w.gamma_shader.resize(sw, sh)
+                w.ui.resize(sw, sh)
+                w.hud.resize(sw, sh)
+
+            elif i.key == K_p and not w.oninv:
+                w.showborder = not w.showborder
+                w.ui.chatmsg(f"Chunk Borders: {'ON' if w.showborder else 'OFF'}", color=(200, 200, 255))
 
             elif i.key == K_e:
                 if w.oninv and w.ui.invbrwser._onsearch: continue

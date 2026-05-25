@@ -91,6 +91,13 @@ class UIManager:
         
         
 
+    def resize(self, w, h):
+        self.screen_sz = (w, h)
+        self.surface   = pygame.Surface((w, h), pygame.SRCALPHA)
+        self.texture.release()
+        self.texture = self.ctx.texture((w, h), 4)
+        self.texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
+
     def chatmsg(self, msg, color=(255, 255, 255)):
         self.chat.append((msg, color, time.time()))
         if len(self.chat) > self.max_chat * 2:
@@ -99,7 +106,8 @@ class UIManager:
     def render(
             self, stats, 
             nametags=None, keybinds=None, renderinv=False, 
-            inv=None, pmodel=None, chat_input=None
+            inv=None, pmodel=None, chat_input=None,
+            tablist=None
     ):
         
         self.surface.fill((0, 0, 0, 0))
@@ -220,6 +228,9 @@ class UIManager:
                                 
                                 
                     self.surface.blit(txt, (tx, ty))
+
+        if tablist:
+            self.rendtab(tablist)
 
         ix, iy, iscl = 0, 0, SCL_HUD
         
@@ -348,6 +359,24 @@ class UIManager:
                 pygame.draw.rect(self.surface, (32, 0, 64, 230), bg)
                 pygame.draw.rect(self.surface, (80, 40, 120, 255), bg, 2)
                 self.surface.blit(txt, (tx, ty))
+
+
+    def rendtab(self, names):
+        th  = self.bfont.get_height()
+        eh  = th + 2
+
+        y = 10
+        for n in names:
+            txt = self.bfont.render(n, False, (255, 255, 255))
+            tw  = txt.get_width()
+            bw  = tw + 2
+            bx  = (self.screen_sz[0] - bw) // 2
+            pygame.draw.rect(
+                self.surface, (0, 0, 0, 120),
+                pygame.Rect(bx, y, bw, eh)
+            )
+            self.surface.blit(txt, (bx + 1, y + 1))
+            y += eh
 
 
 

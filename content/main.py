@@ -58,8 +58,11 @@ class VoxelWorld:
     def __init__(self, wname="default", svaddr=None, seed=None, managed=False):
         if not managed: pygame.init()
         self.managed = managed
-        
-        
+
+        self._fs   = False
+        self._scrw = WIN_W
+        self._scrh = WIN_H
+
         self.screen = pygame.display.set_mode((WIN_W, WIN_H), OPENGL | DOUBLEBUF)
         pygame.display.set_caption("Kyklophobia")
         ico = pygame.image.load('icon.ico') 
@@ -354,6 +357,8 @@ class VoxelWorld:
         self.chunker.updateloads(cx, cz)
         
         self.showborder  = False
+        self.showhud     = True
+        self.showdebug   = True
         self.netclient   = None
         self.is_client   = False
         self._lsnap      = None
@@ -371,6 +376,7 @@ class VoxelWorld:
         self.pmodpay     = None
         self.oninv       = False
         self.onchat      = False
+        self.tabdown     = False
         self.ibuff       = ""
         self.commands = CommandManager()
         self.ptasks      = []
@@ -564,9 +570,10 @@ class VoxelWorld:
             if self.gamma_shader.enabled:
                 self.gamma_shader.fbo.use()
                 self.gamma_shader.fbo.clear(0.5, 0.7, 1.0)
-                
+
             else:
                 self.ctx.screen.use()
+                self.ctx.viewport = (0, 0, self._scrw, self._scrh)
                 self.ctx.clear(0.5, 0.7, 1.0)
                 
                 
@@ -682,6 +689,7 @@ class VoxelWorld:
             
             if self.gamma_shader.enabled:
                 self.ctx.screen.use()
+                self.ctx.viewport = (0, 0, self._scrw, self._scrh)
                 self.ctx.clear(0.5, 0.7, 1.0)
                 self.gamma_shader.color_tex.use(0)
                 self.gamma_shader.prog['DiffuseSampler'].value = 0
@@ -767,26 +775,37 @@ class VoxelWorld:
             
             gst = "ON" if self.gamma_shader.enabled else "OFF"
             keybinds = [
-                "github.com/maladaptivesoftware", 
+                "github.com/maladaptivesoftware",
                 "",
-                "Down [LShift]", 
+                "Down [LShift]",
                 "Sprint [LCtrl]",
-                "Toggle Flight [F]", 
-                "Toggle Camera [L]", 
-                "Debug Borders [P]", 
-                f"Gamma [{gst}] [G]",
+                "Toggle Flight [F]",
+                "Camera [F5]",
+                f"Gamma [{gst}] [F4]",
+                "Borders [F3]",
+                "Fullscreen [F11]",
+                "HUD [F1]",
             ]
 
             self.hud.render(self.p)
+
+            tablist = None
+            if self.tabdown and self.netclient and self.netclient.isconn():
+                tablist = [self.netclient.pname]
+                rp = self.netclient.remoteplayers()
+                for _, p in rp.items():
+                    tablist.append(p.nm)
+
             self.ui.render(
-                stats, 
-                nametags  = [], 
-                keybinds  = keybinds, 
+                stats if self.showdebug else [],
+                nametags  = [],
+                keybinds  = keybinds if self.showhud else None,
                 renderinv = self.oninv,
                 inv = self.p.inv, 
                 pmodel = self.pmodel,
                 
-                chat_input = self.ibuff if self.onchat else None
+                chat_input = self.ibuff if self.onchat else None,
+                tablist = tablist
             )
             
             
@@ -1176,9 +1195,9 @@ class VoxelWorld:
         if nm not in self.text_tag:
             ts = self.font_tag.render(nm, False, (255, 255, 255))
             w, h = ts.get_size()
-            bg = pygame.Surface((w + 8, h + 8), pygame.SRCALPHA)
-            bg.fill((100, 100, 100, 160))
-            bg.blit(ts, (4, 4))
+            bg = pygame.Surface((w + 2, 11), pygame.SRCALPHA)
+            bg.fill((0, 0, 0, 100))
+            bg.blit(ts, (1, 1))
             
             t = self.ctx.texture(bg.get_size(), 4, pygame.image.tostring(bg, "RGBA", False))
             t.filter = (moderngl.NEAREST, moderngl.NEAREST)
