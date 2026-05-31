@@ -22,7 +22,7 @@ root `launch.py` & `server.py` are shim -> `client/launch.py`, `server/server.py
 
 ## first launch
 
-slow. numba compiles `_generate`, `build_meshjit`, `bake_skylight` + smaller jit on first run, cache in `__pycache__`. subsequent launches fine
+slow. numba compiles `_generate`, `build_meshjit`, `bake_skylight` + smaller jit on first run, cache per-world in `saves/<world>/cache` (via `NUMBA_CACHE_DIR`). subsequent launches of that world fine. each world keeps its own cache so loading a second world doesnt evict the first
 
 if world doesnt render, double esc and reload. fps also bad on first few run
 
@@ -51,7 +51,7 @@ mine/
 └── server/           headless. dup of whatever content/ it needs
 ```
 
-BEWARE `content/saves/` is windows junction -> `client/saves/`. keep on gitignore
+saves live in a dedicated dir, no junction. launcher sets `config.root` -> `client/saves/`, server -> `server/saves/`. keep on gitignore
 
 
 ## voxels
@@ -150,10 +150,10 @@ block edit: client click -> `BLOCK_CHANGE` -> server validate -> `BLOCK_UPDATE` 
 
 ## saves
 
-only modified voxel hit disk. fresh world is few KB. chunk unload or `SAVE_INTERVAL` trigger flush
+only modified voxel hit disk. fresh world is few KB. chunk unload or `SAVE_INTERVAL` trigger flush. numba cache sits in `saves/<world>/cache`
 
 > [!NOTE]
-> `content/saves/` is windows junction -> `client/saves/`. keep on gitignore
+> saves dir set via `config.root` (launcher -> `client/saves/`, server -> `server/saves/`). no junction. `NUMBA_CACHE_DIR` still env-set per world for numba. keep on gitignore
 
 
 ## config

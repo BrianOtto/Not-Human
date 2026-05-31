@@ -8,6 +8,7 @@ import struct
 import os
 import numpy as np
 from world.terrain import ChunkManager, PerlinNoise
+import config
 from config import (
     CHUNK_SZ, CHUNK_H, SV_PORT, SV_HOST, SEED,
     SV_RATE, SV_TIMEOUT, SV_MAXONLINE, SV_MOTD,
@@ -575,7 +576,7 @@ class Instance:
 
     def sendmods(self, p):
         mods = {}
-        cdir = os.path.join("saves", self.wname)
+        cdir = os.path.join(config.root, self.wname)
         if os.path.exists(cdir):
             for fn in os.listdir(cdir):
                 if not fn.endswith('.dat'): continue
@@ -661,7 +662,7 @@ class Instance:
 
 
     def regfile(self):
-        return os.path.join("saves", self.wname, "player_registry.json")
+        return os.path.join(config.root, self.wname, "regist.json")
 
 
 
@@ -684,7 +685,7 @@ class Instance:
 
 
     def plfile(self, token):
-        d = os.path.join("saves", self.wname, "players")
+        d = os.path.join(config.root, self.wname, "players")
         os.makedirs(d, exist_ok=True)
         return os.path.join(d, f"{token.replace('-', '')}.json")
 

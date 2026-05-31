@@ -1,3 +1,6 @@
+root = None
+
+
 CHUNK_SZ          = 16
 CHUNK_H           = 128
 SEA_LEVEL         = 64

@@ -23,6 +23,7 @@ from world.blocks import (
 )
 
 
+import config
 from config import (
     CHUNK_SZ, CHUNK_H, SEA_LEVEL, WIN_W, WIN_H,
     RENDER_DIST, SEED, SV_PORT, WATER_OFF,
@@ -322,7 +323,7 @@ class VoxelWorld:
         
 
         from version import __VERSION__
-        d = os.path.join("saves", wname)
+        d = os.path.join(config.root, wname)
         os.makedirs(d, exist_ok=True)
         
         f = os.path.join(d, "VERSION")
@@ -340,7 +341,7 @@ class VoxelWorld:
         self.clock = pygame.time.Clock()
         
 
-        pf = os.path.join("saves", wname, "player.json")
+        pf = os.path.join(config.root, wname, "player.json")
         if os.path.exists(pf):
             try:
                 with open(pf) as f:  pd = json.load(f)
@@ -819,7 +820,7 @@ class VoxelWorld:
         
         pos = self.p.getpos()
         data = {'pos': pos.tolist(), 'yaw': float(self.p.cam.yaw), 'pitch': float(self.p.cam.pitch)}
-        with open(os.path.join("saves", self.wname, "player.json"), 'w') as f:
+        with open(os.path.join(config.root, self.wname, "player.json"), 'w') as f:
             json.dump(data, f)
         
 

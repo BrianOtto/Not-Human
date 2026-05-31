@@ -141,8 +141,14 @@ def main():
     args = argparser()
     banner(args)
 
-    sdir = os.path.join("saves", args.world)
+    import config
+    config.root = os.path.join(SDIR, "saves")
+    sdir = os.path.join(config.root, args.world)
     os.makedirs(sdir, exist_ok=True)
+
+    cdir = os.path.join(sdir, "cache")
+    os.makedirs(cdir, exist_ok=True)
+    os.environ["NUMBA_CACHE_DIR"] = cdir
 
     from instance import Instance
     server = Instance(

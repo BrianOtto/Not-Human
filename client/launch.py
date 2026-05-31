@@ -9,7 +9,7 @@ import logformat
 
 from lconst import (
     WIN_W, WIN_H, FPS, GS,
-    UI_DIR, CONTENT_DIR, BASE_DIR,
+    UI_DIR, CONTENT_DIR, BASE_DIR, SAVES_DIR,
     WINDOW_TITLE,
     WHITE, GRAY, GREEN
 )
@@ -23,41 +23,11 @@ from lscreens import MenuScreen
 
 
 
-def isjunction(p):
-    if not _WIN:
-        return False
-    a = ctypes.windll.kernel32.GetFileAttributesW(str(p))
-    return a != -1 and bool(a & 0x0400)
-
-
-
-
-def mksavelink():
-    shared = os.path.join(BASE_DIR,    "saves")
-    link   = os.path.join(CONTENT_DIR, "saves")
-    os.makedirs(shared, exist_ok=True)
-
-    # print(link, shared)
-    if os.path.islink(link) or isjunction(link):
-        if os.path.realpath(link) == os.path.realpath(shared): return
-        try:    os.rmdir(link)
-        except: os.unlink(link)
-        
-        
-    elif os.path.isdir(link):
-        for i in os.listdir(link):
-            src = os.path.join(link, i)
-            dst = os.path.join(shared, i)
-            if not os.path.exists(dst): shutil.move(src, dst)
-        shutil.rmtree(link)
-
-    if _WIN:
-        subprocess.run(
-            ['cmd', '/c', 'mklink', '/J', link, shared],
-            capture_output=True, creationflags=0x08000000
-        )
-    else:
-        os.symlink(shared, link)
+def setsaves(wname):
+    os.makedirs(SAVES_DIR, exist_ok=True)
+    cdir = os.path.join(SAVES_DIR, wname, "cache")
+    os.makedirs(cdir, exist_ok=True)
+    os.environ["NUMBA_CACHE_DIR"] = cdir
 
 
 
@@ -200,7 +170,7 @@ class Launcher:
             svaddr=None,
             log=None
         ):
-        mksavelink()
+        setsaves(wname)
 
         _cwd  = os.getcwd()
         _path = sys.path[:]
@@ -217,8 +187,10 @@ class Launcher:
                 _respath._setactive(get_reasourceactive())
 
             from main     import VoxelWorld
-            from config   import SV_PORT
             from identity import whoami
+            import config
+            config.root = SAVES_DIR
+            from config import SV_PORT
 
             if log:
                 log.add("Initializing engine...", GRAY)

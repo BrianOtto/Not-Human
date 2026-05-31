@@ -34,6 +34,7 @@ from world.renderers.registry import (
 )
 
 
+import config
 from config import (
     CHUNK_SZ, CHUNK_H, SEA_LEVEL, WATER_OFF,
     TERRAIN_SCL_X, TERRAIN_SCL_Z, TERRAIN_SCL_Y
@@ -168,7 +169,7 @@ class ChunkManager:
         self.queue_chunkbuild = deque()
         self.queue_meshupload = Queue()
         self.last_camera_chunk = None
-        self.world_dir = os.path.join("saves", wname)
+        self.world_dir = os.path.join(config.root, wname)
         self.chunks_dir = self.world_dir
         if self.is_server: os.makedirs(self.chunks_dir, exist_ok=True)
         self.modCache = {}

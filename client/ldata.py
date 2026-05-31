@@ -93,7 +93,8 @@ def save_playerdata(data):
 """
 
 
-def wolrdlist(w=[]):
+def wolrdlist():
+    w  = []
     sd = save_dir()
 
     if not os.path.isdir(sd): return w
