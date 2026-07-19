@@ -4,6 +4,7 @@ from lconst import (
     LAUNCH_CONF,
     RESOURCE_DIR,
     SERVERS_FILE,
+    NAME_FILE,
     SAVES_DIR,
     BASE_DIR
 )
@@ -30,6 +31,19 @@ def set_reasourceactive(nm):
     cfg = loadcfg()
     cfg["resource_pack"] = nm
     savecfg(cfg)
+
+
+
+def getpname(default="Player"):
+    if os.path.exists(NAME_FILE):
+        nm = open(NAME_FILE, encoding='utf-8').read().strip()
+        if nm: return nm
+    return default
+
+
+def setpname(nm):
+    with open(NAME_FILE, "w", encoding='utf-8') as f:
+        f.write(nm.strip())
 
 
 def get_available():

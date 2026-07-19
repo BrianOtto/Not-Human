@@ -9,12 +9,13 @@ import logformat
 
 from lconst import (
     WIN_W, WIN_H, FPS, GS,
-    UI_DIR, CONTENT_DIR, BASE_DIR, SAVES_DIR,
+    UI_DIR, CONTENT_DIR, BASE_DIR, SAVES_DIR, RESOURCE_DIR,
     WINDOW_TITLE,
     WHITE, GRAY, GREEN
 )
-from ldata    import get_reasourceactive
+from ldata    import get_reasourceactive, getpname, setpname
 from lwidgets import nine_slice  # noqa
+from lplayer  import MiniPlayer
 
 sys.path.insert(0, UI_DIR)
 from bfont import Font
@@ -94,6 +95,8 @@ class Launcher:
         pygame.display.set_caption(WINDOW_TITLE)
 
         self.loadassets()
+        setpname(getpname())   # make sure name.txt exists for easy access
+        self.mini    = MiniPlayer(os.path.join(RESOURCE_DIR, "player", "skin.png"))
         self.running = True
         self.clock   = pygame.time.Clock()
         self._screen = MenuScreen(self)
@@ -207,7 +210,7 @@ class Launcher:
                 pts  = svaddr.split(":")
                 host = pts[0]
                 port = int(pts[1]) if len(pts) > 1 else SV_PORT
-                nm   = whoami().get("nm", "Player")
+                nm   = getpname(whoami().get("nm", "Player"))
                 world.svconnect(host=host, port=port, pname=nm)
 
                 if not (world.netclient and world.netclient.isconn()):
@@ -284,6 +287,8 @@ class Launcher:
         pygame.mouse.set_visible(True)
         pygame.event.set_grab(False)
         self.loadassets()
+        self.mini.release()
+        self.mini = MiniPlayer(os.path.join(RESOURCE_DIR, "player", "skin.png"))
 
 
     def run(self):

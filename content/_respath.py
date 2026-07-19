@@ -46,7 +46,7 @@ def atlas_block():   return os.path.join(_getactive(), "textures", "blocks", "at
 def atlas_items():   return os.path.join(_getactive(), "textures", "items",  "items.png")
 def clrmap_grass():  return os.path.join(_getactive(), "textures", "colormaps", "grass.png")
 def clrmap_folage(): return os.path.join(_getactive(), "textures", "colormaps", "foliage.png")
-def text_player():   return os.path.join(_getactive(), "textures", "entity", "player.png")
+def text_player():   return os.path.join(_getdir(), "player", "skin.png")
 def text_ascii():    return os.path.join(_getactive(), "textures", "ui", "ascii.png")
 def text_font():     return os.path.join(_getactive(), "textures", "ui", "font.png")
 def text_gui():      return os.path.join(_getactive(), "textures", "ui", "gui.png")

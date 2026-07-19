@@ -8,6 +8,7 @@ LAUNCH_CONF  = os.path.join(BASE_DIR, "launch.json")
 RESOURCE_DIR = os.path.join(BASE_DIR, "resourcepacks")
 UI_DIR       = os.path.join(BASE_DIR, "ui")
 SERVERS_FILE = os.path.join(BASE_DIR, "servers.json")
+NAME_FILE    = os.path.join(BASE_DIR, "name.txt")
 SAVES_DIR    = os.path.join(BASE_DIR, "saves")
 
 sys.path.insert(0, CONTENT_DIR)
@@ -20,7 +21,7 @@ WIN_H = 720
 FPS   = 60
 WINDOW_TITLE = f"Kyklophobia  v{__VERSION__}"
 
-# gui coords: real / GS. 640x360 logical, Mc-style.
+# gui coords -> real/GS 640x360 logical
 GS    = 2
 GUI_W = WIN_W // GS
 GUI_H = WIN_H // GS

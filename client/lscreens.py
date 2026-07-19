@@ -15,7 +15,7 @@ from lconst import (
 from lwidgets import Button, TextInput, ListWidget, nine_slice
 from ldata import (
     get_reasourceactive, set_reasourceactive,
-    get_available, save_dir,
+    get_available, save_dir, getpname,
     load_servers, save_servers,
     wolrdlist, svping, ms_signal
 )
@@ -116,6 +116,8 @@ class MenuScreen(Screen):
 
         super().draw(surf)
 
+        self._drawplayer(surf)
+
         v = f"Version {__VERSION__}\ngithub.com/maladaptivesoftware\nyoutube.com/@maladaptivesoftware"
         w = "\nBEWARE: This is a minecraft CLONE, not affiliated with mojang or related!"
         l = "\n© Public license, feel free to modify and republish as you wish, give Credit!"
@@ -123,6 +125,27 @@ class MenuScreen(Screen):
         surf.blit(t, (4*GS, WIN_H - t.get_height() - 4*GS))
 
 
+
+
+    def _drawplayer(self, surf):
+        mini = self.L.mini
+        sz   = mini.sz
+        mcx  = (840 + WIN_W) // 2 
+        mcy  = self.btn5.rect.bottom - int(sz * 0.35)
+        
+
+        mx, my = pygame.mouse.get_pos()
+        nx  = max(-1.0, min(1.0, (mx - mcx) / 260.0))
+        ny  = max(-1.0, min(1.0, (my - mcy) / 200.0))
+        yaw   = 180.0 + nx * 35.0
+        pitch = -ny * 28.0
+
+        nm = getpname()
+        t  = self.bfont.render(nm, False, WHITE)
+        surf.blit(t, (mcx - t.get_width() // 2, mcy - sz // 2 - t.get_height()))
+
+        ps = mini.render(yaw, pitch)
+        surf.blit(ps, (mcx - sz // 2, mcy - sz // 2))
 
 
 class ResourcePackScreen(Screen):
