@@ -362,7 +362,7 @@ class VoxelWorld:
         self.showdebug   = True
         self.netclient   = None
         self.is_client   = False
-        self._lsnap      = None
+        self._dcreq      = None
         self.svport      = SV_PORT
         self.pchg        = set()
         self.pupdates    = []
@@ -443,6 +443,11 @@ class VoxelWorld:
         _fc      = 0
         running  = True
         while running:
+            if self._dcreq:
+                print(f"back to launcher: {self._dcreq}")
+                running = False
+                continue
+
             if self._resetreq:
                 self.resetworld()
                 self._resetreq = False
@@ -891,13 +896,6 @@ class VoxelWorld:
             self.svdisconnect()
             return
 
-        self._lsnap = {
-            'seed': self.seed,
-            'mods': {k: v.copy() for k, v in self.chunker.modCache.items()},
-            'pos': self.p.pos.copy(),
-        }
-        
-
         self.ui.chatmsg(f"Connecting to {host}:{port}...", color=(200, 200, 255))
         self.netclient = NetworkClient(
             host=host, port=port, pname=pname, 
@@ -914,7 +912,6 @@ class VoxelWorld:
         else:
             self.ui.chatmsg(f"failed to connect {host}:{port}", color=(255, 150, 150))
             self.netclient = None
-            self._lsnap = None
             
             
             
@@ -929,22 +926,19 @@ class VoxelWorld:
         self.chunker.is_server = True
     """
 
-    def svdisconnect(self):
-        if self.netclient:
-            self.netclient.disconnect()
-            self.netclient = None
-        self.is_client = False
-        self.chunker.is_server = True
-        self.ui.chatmsg("disconnected", color=(255, 200, 200))
-        self.restoreworld() # TODO: back to launch, not local
+    def svdisconnect(self, reason="disconnected"):
+        # net thread can land here -> only set flag
+        if self.netclient: self.netclient.disconnect()
+        self.ui.chatmsg(reason, color=(255, 200, 200))
+        self._dcreq = reason
 
-    # TODO remove this entirely
-    # since we wont need to restore (disconnect fallback -> launch)
+
+    """
     def restoreworld(self):
         snap = self._lsnap
         self._lsnap = None
         if snap is None: return
-            
+
         self.ui.chatmsg("restoring local world...", color=(200, 200, 200))
         self.seed  = snap['seed']
         self.noise = PerlinNoise(seed=self.seed)
@@ -963,8 +957,9 @@ class VoxelWorld:
         self.p.cam.pos = ep
         cx, cz = self.p.chunkpos(CHUNK_SZ)
         self.chunker.updateloads(cx, cz)
-        
-        
+    """
+
+
 
     def resetworld(self):
         with self.statelock:
@@ -1110,11 +1105,8 @@ class VoxelWorld:
             
 
         def on_disconnect(reason = "connection lost"):
-            self.is_client = False
-            self.netclient = None
-            self.chunker.is_server = True
             self.ui.chatmsg(f"disconnected: {reason}", color=(255, 150, 150))
-            self.restoreworld()
+            self._dcreq = reason or "connection lost"
 
         self.netclient.on_seed        = on_seed
         self.netclient.on_mods        = on_mods

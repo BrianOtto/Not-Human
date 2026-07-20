@@ -47,6 +47,7 @@ class NetworkClient:
         self.world_seed    = None
         self.seed_received = False
         self.drsn = ""
+        self._dcfired = False
         self.rpl  = {}
         self.plock = threading.Lock()
 
@@ -141,7 +142,16 @@ class NetworkClient:
 
 
 
+    def drop(self, reason="connection lost"):
+        self.conn = False
+        if self._dcfired: return
+        self._dcfired = True
+        if not self.drsn: self.drsn = reason
+        if self.on_disconnect: self.on_disconnect(self.drsn)
+
+
     def disconnect(self):
+        self._dcfired = True #dont bounce cb back
         self.conn = False
         if self.sock:
             try: self.sock.close()
@@ -184,9 +194,9 @@ class NetworkClient:
         self._last_anif = anim_flags
         try:
             self.sock.sendall(mkposupd(pos, yaw, pitch, _held, anim_flags))
-                
+
         except Exception:
-            self.conn = False
+            self.drop()
             
             
      
@@ -199,25 +209,25 @@ class NetworkClient:
     def sendchange(self, x, y, z, bt):
         if not self.conn: return
         try: self.sock.sendall(mkblockchg(x, y, z, bt))
-        except Exception: self.conn = False
+        except Exception: self.drop()
         
 
     def sendchat(self, msg):
         if not self.conn: return
         try: self.sock.sendall(mkchat(msg))
-        except Exception: self.conn = False
+        except Exception: self.drop()
         
 
     def senddrop(self, iid, cnt, pos, vel):
         if not self.conn: return
         try: self.sock.sendall(mkitemdrop(iid, cnt, pos, vel))
-        except Exception: self.conn = False
+        except Exception: self.drop()
         
 
     def sendpickup(self, eid):
         if not self.conn: return
         try: self.sock.sendall(mkitempick(eid))
-        except Exception: self.conn = False
+        except Exception: self.drop()
         
        
         
@@ -383,11 +393,8 @@ class NetworkClient:
                 
                 
 
-        wasc = self.conn
-        self.conn = False
-        if wasc:
-            self.log("client disconnect", (255, 200, 200))
-            if self.on_disconnect: self.on_disconnect(self.drsn)
+        if not self._dcfired: self.log("client disconnect", (255, 200, 200))
+        self.drop()
             
 
 
