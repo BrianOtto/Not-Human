@@ -537,17 +537,17 @@ class Instance:
         cname = tokens[0].lower()
         args  = tokens[1:]
 
-        args     = self.commands._injdefault(cname, args, self._world_wrap)
+        args     = self.commands.injtarget(cname, args, self._world_wrap)
         entities = self.commands.gather_entities(self._world_wrap)
 
         executor = None
-        for e in entities:
-            if e.kind == "player" and e.source.pid == p.pid:
-                executor = e; break
-                
-        if not executor: 
+        for i in entities:
+            if i.kind == "player" and i.source.pid == p.pid:
+                executor = i; break
+
+        if not executor:
             executor = entities[0] if entities else None
-            
+
         if not executor:
             self.send(p, mkservmsg("Command error: could not identify executor"))
             return
@@ -561,12 +561,12 @@ class Instance:
             world=self._world_wrap, executor=executor,
             entities=entities, reply=reply,
         )
-        
-        
+
+
         try:
             spec = self.commands.registry.get(cname)
             spec.handler(ctx, args)
-            
+
         except Exception as e:
             self.send(p, mkservmsg(f"Command error: {e}"))
             
