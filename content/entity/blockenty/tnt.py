@@ -40,13 +40,15 @@ BLAST_OFF = buildsphere(BLAST_RADIUS)
 
 @regblockent(60)   # world.blocks.TNT = 60
 class TNTEntity(BlockEntity):
-    def __init__(self, x, y, z, fuse=None, _remote=False):
+    def __init__(self, x, y, z, fuse=None, _remote=False, eid=None):
         super().__init__(x, y, z)
         self.fuse    = fuse if fuse is not None else FUSE_TIME
         self._remote = _remote
+        self.eid     = eid           # set -> server owns this one
         # pos[1] = bottom of the 1x1x1 cube
         self.pos = np.array([x + 0.5, float(y), z + 0.5], dtype='f4')
         self.vy  = _INITIAL_VEL_Y
+        self.tpos = self.pos.copy()  # last pos the server sent
 
         self._on_ground   = False
         self._flash_timer = 0.0
@@ -54,11 +56,30 @@ class TNTEntity(BlockEntity):
         self._uvs         = None
 
 
+    def dbgtag(self):
+        who = f"#{self.eid}" if self.eid is not None else "local"
+        og  = "grnd" if self._on_ground else "air"
+        d   = float(np.linalg.norm(self.tpos - self.pos)) if self.eid is not None else 0.0
+        return (f"{who} tnt y{self.pos[1]:.1f} vy{self.vy:.1f} "
+                f"f{max(self.fuse, 0.0):.1f} {og} d{d:.2f}")
+
+
+    def setnet(self, pos, vy):
+        self.tpos = pos.copy()
+        self.vy   = vy
+
 
     def update(self, dt, wc):
         # t0 = time.perf_counter()
         chunker = wc.get('chunker')
         if chunker: self.applygrav(dt, chunker)
+
+        # server owned -> predict locally, ease onto the authoritative pos
+        if self.eid is not None:
+            self.pos += (self.tpos - self.pos) * min(1.0, 10.0 * dt)
+            self.x = int(math.floor(self.pos[0]))
+            self.y = int(math.floor(self.pos[1]))
+            self.z = int(math.floor(self.pos[2]))
 
         intv = _FLASH_FAST if self.fuse <= 1.0 else _FLASH_SLOW
         self._flash_timer += dt
@@ -68,7 +89,8 @@ class TNTEntity(BlockEntity):
 
         self.fuse -= dt
         # print(self.fuse)
-        if self.fuse <= 0.0: self.explode(wc)
+        # server owned ones blow up when it says so
+        if self.fuse <= 0.0 and self.eid is None: self.explode(wc)
 
     def render(self, mgr):
         uvs = self.getuvs()
@@ -151,11 +173,9 @@ class TNTEntity(BlockEntity):
 
         from world.blocks import TNT as TNT_ID
 
-        # server authority for block destruction.
-        # **local** entity sends detonate w/ final pos -> server does blast.
+        # server authority for block destruction
         if nc and nc.isconn():
-            if not self._remote:
-                nc.sendchange(cx, cy, cz, 0x2000)  # tnt detonate signal
+            # server does the block destruction, this is just the show
             if chunker and pmgr:
                 for dx, dy, dz, dist in BLAST_OFF:
                     if dist > BLAST_RADIUS * 0.6: continue
@@ -304,11 +324,12 @@ def useflintonsteel(manager, x, y, z, item_stack, world_ref):
         return
 
     world_ref.chunker.breakblock(x, y, z)
-    manager.activate(x, y, z, TNT)
 
     nc = world_ref.netclient
     if nc and nc.isconn():
-        nc.sendchange(x, y, z, 0x4000)  # tnt ignite signal
+        nc.sendchange(x, y, z, 0x4000)  # tnt ignite signal, server spawns it
+    else:
+        manager.activate(x, y, z, TNT)
 
 
 

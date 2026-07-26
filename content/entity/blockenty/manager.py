@@ -40,9 +40,14 @@ class BlockEntityManager:
         ecls = blockenttype(bid)
         if ecls is None:
             return False
-            
+
         self.entities.append(ecls(x, y, z, **kwargs))
         return True
+
+    def byeid(self, eid):
+        for i in self.entities:
+            if i.eid == eid: return i
+        return None
 
     def update(self, dt, world_ctx):
         # snapshot entity spawned by explosion this frame -> start ticking next

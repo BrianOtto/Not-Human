@@ -32,6 +32,20 @@ class ItemEntity:
         self.tint         = tint
         self.tint_mode    = tint_mode
         self.entity_id    = entity_id
+        self.tpos         = self.pos.copy()   # last pos the server sent
+
+
+    def setnet(self, pos, vy):
+        self.tpos   = pos.copy()
+        self.vel[1] = vy
+
+
+    def dbgtag(self):
+        who = f"#{self.entity_id}" if self.entity_id else "local"
+        gr  = "grnd" if self.grounded else "air"
+        d   = float(np.linalg.norm(self.tpos - self.pos)) if self.entity_id else 0.0
+        return (f"{who} item{self.itemId}x{self.count} y{self.pos[1]:.1f} "
+                f"{gr} d{d:.2f}")
 
 
 class ItemEntityManager:
@@ -345,6 +359,12 @@ class ItemEntityManager:
         
         
 
+    def byeid(self, eid):
+        for i in self.items:
+            if i.entity_id == eid: return i
+        return None
+
+
     def update(self, dt, player_pos, inv, netclient=None):
         rm = []
 
@@ -355,7 +375,8 @@ class ItemEntityManager:
             i.age += dt
             i.pickup_delay = max(0, i.pickup_delay - dt)
 
-            if i.age > DROP_LIFETIME:
+            # server owned ones die when it says so
+            if i.age > DROP_LIFETIME and not i.entity_id:
                 i.active = False;  rm.append(i);  continue
 
             if not i.grounded:
@@ -376,6 +397,11 @@ class ItemEntityManager:
                 
 
             i.pos  = np2
+
+            # server owned -> ease onto the pos it keeps sending
+            if i.entity_id and netclient:
+                i.pos += (i.tpos - i.pos) * min(1.0, 10.0 * dt)
+
             i.rot += DROP_SPIN * dt
             
 

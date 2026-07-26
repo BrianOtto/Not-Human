@@ -4,6 +4,7 @@ import time
 from pygame.locals import *
 from config import SCL_HUD, WIN_W, WIN_H
 from entity.blockenty import itemblock
+from items.registry import REGISTRY, ItemStack
 
 SCRL_UP = 4
 SCRL_DW = 5
@@ -161,6 +162,17 @@ def onEvent(w, events):
 
             elif K_1 <= i.key <= K_9: w.p._slot = i.key - K_1
 
+            elif i.key == K_DELETE:
+                mods = pygame.key.get_mods()
+
+                if (mods & KMOD_SHIFT) and (mods & KMOD_CTRL):
+                    w.p.inv.clear()
+                    w.ui.chatmsg("Inventory cleared", color=(255, 180, 180))
+
+                elif w.oninv:
+                    hvr = w.p.inv._hslot
+                    if hvr >= 0: w.p.inv.slots[hvr] = None
+
             elif i.key == K_q:
                 ictrl = pygame.key.get_mods() & KMOD_CTRL
                 
@@ -240,7 +252,14 @@ def onEvent(w, events):
                         w.p.inv._held = None
                         eye = w.p.eyepos()
                         td  = w.p.cam.front.copy()
-                        w.itementys.spawn(held.item.itemId, held.count, eye + td * 0.5, td)
+                        pos = eye + td * 0.5
+
+                        if w.netclient and w.netclient.isconn():
+                            vel = td * 3.0
+                            vel[1] += 2.0
+                            w.netclient.senddrop(held.item.itemId, held.count, pos, vel)
+
+                        else: w.itementys.spawn(held.item.itemId, held.count, pos, td)
                         
                         
                         
@@ -272,9 +291,7 @@ def onEvent(w, events):
                             
 
                         if w.netclient and w.netclient.isconn():
-                            w.pchg.add((bx, by, bz))
                             w.netclient.sendchange(bx, by, bz, 0)
-                            threading.Timer(0.2, lambda k=(bx,by,bz): w.pchg.discard(k)).start()  # k= avoid closure
                             
                             
                     else:
@@ -308,11 +325,9 @@ def onEvent(w, events):
                                     
 
                                 if w.netclient and w.netclient.isconn():
-                                    w.pchg.add((px, py, pz))
                                     from world.blockstate import BLOCK_ID_MASK, STATE_SHIFT, PLAYER_PLACED_FLAG
                                     pkd = (bt & BLOCK_ID_MASK) | (_facig << STATE_SHIFT) | PLAYER_PLACED_FLAG
                                     w.netclient.sendchange(px, py, pz, pkd)
-                                    threading.Timer(0.2, lambda k=(px,py,pz): w.pchg.discard(k)).start()
                                     
                                     
                                     
@@ -329,6 +344,17 @@ def onEvent(w, events):
                             if tid:
                                 hand = itemblock(_stack.item.itemId, tid)
                                 if hand: hand(w.blockentys, bx, by, bz, _stack, w)
+
+                elif i.button == 2:
+                    tb, face = w.p.targetblock(5.0)
+
+                    if tb:
+                        bx, by, bz = tb
+                        bt = w.chunker.getblock(bx, by, bz)
+
+                        if bt and REGISTRY.exists(bt):
+                            idef = REGISTRY.get(bt)
+                            w.p.inv.slots[w.p._slot] = ItemStack(idef, idef.max_stack)
 
                 elif i.button == 4:
                     if w.oninv: w.ui.invbrwser.onscroll(1)

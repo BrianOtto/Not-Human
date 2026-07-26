@@ -7,16 +7,18 @@ import time
 import struct
 import os
 import numpy as np
+from collections import deque
 from world.terrain import ChunkManager, PerlinNoise
 import config
 from config import (
     CHUNK_SZ, CHUNK_H, SV_PORT, SV_HOST, SEED,
-    SV_RATE, SV_TIMEOUT, SV_MAXONLINE, SV_MOTD,
+    SV_RATE, SV_TIMEOUT, SV_MAXONLINE, SV_MOTD, RENDER_DIST,
 )
 from network.protocol import (
     MessageType, ReadMessage,
     mkservmsg, mkpos, mkitemcollect, mkdisconnect, mksvreply, mkleft, mkseed, mkpjoin,
-    mkblockupd, mkchat, mkitemspawn, mkitemdespawn, mkmods, mklist,
+    mkblockupd, mkchat, mkitemspawn, mkitemdespawn, mklist,
+    mkentspawn, mkentpos, mkentgone, mksvchunks, mkblockbulk, mkchunk,
 )
 from identity import bytetoken
 
@@ -27,6 +29,17 @@ TNT_FUSE       = 4.0
 TNT_CFUSE_MIN  = 0.5
 TNT_CFUSE_MAX  = 1.5
 TNT_BLAST_R    = 4.0
+BEDROCK_ID     = 4
+
+# entity physics, shared by every kind
+ENT_GRAV    = -32.0
+ENT_TERMVEL = -78.4
+ENT_IVELY   =  4.0
+
+# item drops
+ITEM_LIFE = 300.0
+ITEM_FRIC = 0.8
+ITEM_REACH = 2.5
 
 
 def _tntsphere(r=TNT_BLAST_R):
@@ -58,6 +71,11 @@ class PlayerState:
         self.conn   = True
         self.btimes = []
         self.ltele  = 0.0
+        self.sentck = set()   # chunks this one already has
+        self.sq     = deque()   # normal traffic
+        self.cq     = deque()   # chunk payloads, yield to sq
+        self.slock  = threading.Lock()
+        self.swake  = threading.Event()
 
 
 class Instance:
@@ -84,8 +102,13 @@ class Instance:
         self.neid    = 1
         self.ilock   = threading.Lock()
         self.commands = None
-        self.tnts    = []   # [x, y, z, fuse]
+        self.ents    = {}   # eid -> [kind, x, y, z, vy, fuse, onground]
         self.tntlock = threading.Lock()
+        self._eid    = 0
+        self.eidlock = threading.Lock()
+        self._lastkeys = None
+        self.pendblk   = {}   # (x,y,z) -> bt, flushed once a tick
+        self.blklock   = threading.Lock()
 
         self.initworld()
         self.initcmds()
@@ -104,9 +127,10 @@ class Instance:
 
         self.world     = _World(self.seed)
         self.chunker = ChunkManager(
-            self.world, render_dist=1,
-            wname=self.wname, is_server=True,
+            self.world, render_dist=self.SIM_DIST,
+            wname=self.wname, is_server=True, headless=True,
         )
+        self.world.chunker = self.chunker
         
         self.chunker.ui = None
         
@@ -159,16 +183,38 @@ class Instance:
         with self.plock:
             for p in self.players.values():
                 if p.conn and p.pid != exclude_pid:
-                    try: p.sock.sendall(msg)
-                    except Exception: pass
-                    
-                    
+                    self.send(p, msg)
 
-    def send(self, p, msg):
-        try: p.sock.sendall(msg)
-        except Exception: pass
-        
-        
+
+
+    def send(self, p, msg, low=False):
+        # one writer thread owns the socket
+        if not p.conn: return
+        with p.slock:
+            if low: p.cq.append(msg)
+            else:   p.sq.append(msg)
+        p.swake.set()
+
+
+    def writeloop(self, p):
+        while self.running and p.conn:
+            with p.slock:
+                if   p.sq: m = p.sq.popleft()
+                elif p.cq: m = p.cq.popleft()   # chunks only when nothing else waits
+                else:
+                    m = None
+                    p.swake.clear()
+
+            if m is None:
+                p.swake.wait(0.5)
+                continue
+
+            try: p.sock.sendall(m)
+            except Exception:
+                p.conn = False
+                break
+
+
 
 
     def teleport(self, p, pos):
@@ -187,14 +233,11 @@ class Instance:
         
 
     def giveitem(self, p, itemId, count):
-        try:
-            p.sock.sendall(mkitemcollect(itemId, count))
-            return True
-            
-        except Exception:
-            return False
-            
-            
+        self.send(p, mkitemcollect(itemId, count))
+        return True
+
+
+
             
             
             
@@ -204,7 +247,12 @@ class Instance:
     MAX_SPEED     = 80.0
     MAX_REACH     = 14
     MAX_BID       = 600
-    BLOCK_RATE    = 20
+    BLOCK_RATE    = 80
+    # +1 margin, client meshes need a loaded neighbour for seams
+    SIM_DIST      = RENDER_DIST + 1
+    STREAM_DIST   = RENDER_DIST + 1
+    STREAM_MAX    = 24    # chunks queued per player per pass
+    LOAD_INT      = 0.25
     MAX_CHAT      = 256
     BLOCK_MASKID = 0x3FF
     
@@ -348,6 +396,7 @@ class Instance:
             p   = PlayerState(pid, f"Player{pid}", sock, addr)
             p.reader = reader
             with self.plock: self.players[pid] = p
+            threading.Thread(target=self.writeloop, args=(p,), daemon=True).start()
             print(f"Player {pid} ({addr[0]}:{addr[1]}) connecting...")
             self.postjoin(p, data)
             
@@ -364,7 +413,7 @@ class Instance:
             tb, nm = p.reader.parse_join(jdata)
             token  = bytetoken(tb)
             p.token = token
-            p.sock.settimeout(1.0)
+            p.sock.settimeout(30.0)
 
             registry = self.loadreg()
 
@@ -410,7 +459,9 @@ class Instance:
             # dont burst seed+mods+players at once
             self.send(p, mkseed(self.seed))
             time.sleep(0.01)
-            self.sendmods(p)
+            # mods are baked into the chunk voxels
+            self.sendents(p)
+            self.send(p, mksvchunks(sorted(self.chunker.chunks.keys())))
             time.sleep(0.01)
             self.sendplrs(p)
             time.sleep(0.01)
@@ -443,28 +494,11 @@ class Instance:
 
 
     def msgloop(self, p):
-        nulls = 0
         while self.running and p.conn:
             try:
                 msg = p.reader.readmsg()
 
-                if msg is None:
-                    nulls += 1
-                    if nulls > 1000:
-                        try:
-                            p.sock.settimeout(0.1)
-                            if not p.sock.recv(1, socket.MSG_PEEK): break
-                            p.sock.settimeout(1.0)
-                            nulls = 0
-
-                        except socket.timeout:
-                            p.sock.settimeout(1.0)
-                            nulls = 0
-
-                        except (socket.error, OSError): break
-
-                    else: time.sleep(0.01)
-                    continue
+                if msg is None: continue
 
                 nulls = 0
                 mt, data = msg
@@ -480,23 +514,28 @@ class Instance:
                         p.aflags   = flags
                         p.lupd     = time.time()
 
+                elif mt == MessageType.CHUNK_REQ:
+                    cx, cz = p.reader.parse_chunkreq(data)
+                    # he unloaded it, forget it and the next pass resends
+                    p.sentck.discard((cx, cz))
+
+
                 elif mt == MessageType.BLOCK_CHANGE:
                     x, y, z, bt = p.reader.parse_blockchange(data)
-                    if bt == 0x2000:
-                        self.detonate(x, y, z)
+                    if not self.validblock(p, x, y, z, bt):
+                        # resend the chunk, his predicted edit gets overwritten
+                        p.sentck.discard((x // CHUNK_SZ, z // CHUNK_SZ))
                         continue
-                    if self.validblock(p, x, y, z, bt):
-                        ignite = (bt == 0x4000)
-                        if ignite: bt = 0
-                        cx, cz = x // CHUNK_SZ, z // CHUNK_SZ
-                        lx, lz = x - cx * CHUNK_SZ, z - cz * CHUNK_SZ
-                        if not self.chunker.setblock(x, y, z, bt):
-                            self.chunker.recordmod(cx, cz, lx, y, lz, bt)
-                        self.broadcast(
-                            mkblockupd(x, y, z, bt),
-                            exclude_pid=p.pid)
 
-                        if ignite: self.ignitetnt(x, y, z)
+                    ignite = (bt == 0x4000)
+                    if ignite: bt = 0
+                    cx, cz = x // CHUNK_SZ, z // CHUNK_SZ
+                    lx, lz = x - cx * CHUNK_SZ, z - cz * CHUNK_SZ
+                    if not self.chunker.setblock(x, y, z, bt):
+                        self.chunker.recordmod(cx, cz, lx, y, lz, bt)
+                    self.queueblk(x, y, z, bt)
+
+                    if ignite: self.ignitetnt(x, y, z)
 
                 elif mt == MessageType.CHAT:
                     text = p.reader.parse_chatmsg(data)
@@ -574,27 +613,6 @@ class Instance:
             
 
 
-    def sendmods(self, p):
-        mods = {}
-        cdir = os.path.join(config.root, self.wname)
-        if os.path.exists(cdir):
-            for fn in os.listdir(cdir):
-                if not fn.endswith('.dat'): continue
-                try:
-                    pts = fn[:-4].split('_')
-                    if len(pts) == 2:
-                        cx, cz = int(pts[0]), int(pts[1])
-                        j = self.loadcmods(os.path.join(cdir, fn))
-                        if j: mods[(cx, cz)] = j
-                except Exception:
-                    continue
-        # merge .dat files + memcache
-        for (cx, cz), j in self.chunker.modCache.items():
-            if (cx, cz) not in mods: mods[(cx, cz)] = {}
-            mods[(cx, cz)].update(j)
-        p.sock.sendall(mkmods(mods))
-        
-        
         
 
 
@@ -639,21 +657,99 @@ class Instance:
 
     def itemdrop(self, iid, cnt, pos, vel):
         with self.ilock:
-            eid = self.neid;  self.neid += 1
+            eid = self.newid()
             self.aitems[eid] = {
-                'iid': iid, 'cnt': cnt, 'pos': pos,
-                'vel': vel, 'spawn_time': time.time(),
+                'iid': iid, 'cnt': cnt, 'pos': np.array(pos, dtype='f4'),
+                'vel': np.array(vel, dtype='f4'), 'spawn_time': time.time(),
+                'grnd': False, 'still': False, 'snt': False,
             }
-            
+
         self.broadcast(mkitemspawn(eid, iid, cnt, pos, vel))
+
+
+
+    def newid(self):
+        # items and entities share the eid space
+        with self.eidlock:
+            self._eid += 1
+            return self._eid
+
+
+
+    def itemgrav(self, it, dt):
+        p, v = it['pos'], it['vel']
+        bx = int(math.floor(p[0]))
+        bz = int(math.floor(p[2]))
+
+        # no chunk under it -> cant tell where the floor is, sit still
+        c = self.chunker.chunks.get((bx // CHUNK_SZ, bz // CHUNK_SZ))
+        if not c or not c.gen_ready:
+            it['still'] = True
+            return
+
+        if it['grnd']:
+            if self.chunker.issolid(bx, int(math.floor(p[1] - 0.2)), bz):
+                it['still'] = True
+                return
+
+            it['grnd'] = False
+
+        it['still'] = False
+
+        v[1] = max(v[1] + ENT_GRAV * dt, ENT_TERMVEL)
+        ny   = p[1] + v[1] * dt
+        fb   = int(math.floor(ny - 0.1))
+
+        if v[1] < 0 and self.chunker.issolid(bx, fb, bz):
+            p[1] = float(fb + 1) + 0.1
+            v[1] = 0.0
+            it['grnd'] = True
+            v[0] *= ITEM_FRIC
+            v[2] *= ITEM_FRIC
+
+        else: p[1] = ny
+
+        p[0] += v[0] * dt
+        p[2] += v[2] * dt
+
+
+
+    def tickitems(self, dt):
+        now  = time.time()
+        with self.ilock:
+            for i in self.aitems.values(): self.itemgrav(i, dt)
+            # timed out, or fell out of the world
+            old = [i for i, j in self.aitems.items()
+                   if now - j['spawn_time'] > ITEM_LIFE or j['pos'][1] < 0.0]
+
+            for i in old: del self.aitems[i]
+
+        for eid in old: self.broadcast(mkitemdespawn(eid))
+
+
+
+    def bcastitems(self):
+        # settled ones stop costing bandwidth, one last pos when they stop
+        with self.ilock:
+            snap = []
+            for i, j in self.aitems.items():
+                if j['still'] and j['snt']: continue
+                j['snt'] = j['still']
+                snap.append((i, j['pos'].copy(), float(j['vel'][1])))
+
+        for eid, pos, vy in snap: self.broadcast(mkentpos(eid, pos, vy))
 
 
 
 
     def itempickup(self, p, eid):
         with self.ilock:
-            if eid not in self.aitems: return
+            it = self.aitems.get(eid)
+            if it is None: return
+            # too far -> someone is reaching thru the floor
+            if np.linalg.norm(it['pos'] - p.pos) > ITEM_REACH: return
             item = self.aitems.pop(eid)
+
         self.send(p, mkitemcollect(item['iid'], item['cnt']))
         self.broadcast(mkitemdespawn(eid))
 
@@ -717,6 +813,7 @@ class Instance:
     def disconn(self, p):
         self.savepl(p)
         p.conn = False
+        p.swake.set()   # let the writer notice
         p.sock.close()
         with self.plock: self.players.pop(p.pid, None)
         print(f"{p.nm} (id={p.pid}) disconnected")
@@ -774,71 +871,204 @@ class Instance:
     def _tickloop(self):
         lpos = time.time()
         lt   = time.time()
+        lld  = 0.0
         while self.running:
             t0 = time.time()
             dt = t0 - lt
             lt = t0
-            self.ticktnts(dt)
+            if t0 - lld >= self.LOAD_INT:
+                self.updateloads()
+                lld = t0
+            self.tickents(dt)
+            self.tickitems(dt)
+            self.flushblks()
             if t0 - lpos >= self.pint:
                 self._bcastpos()
+                self.bcastents()
+                self.bcastitems()
                 lpos = t0
             sd = time.time() - t0
             if sd < self.tint: time.sleep(self.tint - sd)
 
 
 
-    def ignitetnt(self, x, y, z, fuse=30.0):
-        # fallback fuse
-        # client driven via detonate
+    def updateloads(self):
+        cs = set()
+        with self.plock:
+            for p in self.players.values():
+                if not p.conn: continue
+                cs.add((int(p.pos[0] // CHUNK_SZ), int(p.pos[2] // CHUNK_SZ)))
+
         with self.tntlock:
-            self.tnts.append([x, y, z, fuse])
+            for e in self.ents.values():
+                cs.add((int(e[1] // CHUNK_SZ), int(e[3] // CHUNK_SZ)))
+
+        self.chunker.updateloadsmulti(sorted(cs))
+        self.streamchunks()
+
+        keys = sorted(self.chunker.chunks.keys())
+        if keys != self._lastkeys:
+            rdy = sum(1 for c in self.chunker.chunks.values() if c.gen_ready)
+            print(f"chunks: {rdy}/{len(keys)} generated, {len(cs)} centers, {len(self.ents)} entities")
+            self._lastkeys = keys
+            self.broadcast(mksvchunks(keys))
 
 
-    def detonate(self, x, y, z):
-        # match by col (y) -> blast at the client-provided pos
+    def streamchunks(self):
+        # ready voxels -> anyone close enough who hasnt got them
+        with self.plock:
+            pl = [p for p in self.players.values() if p.conn]
+
+        # late decor landed on chunks already sent -> they go again
+        dd = self.chunker.decordirty
+        if dd:
+            stale = set(dd); dd.clear()
+            for p in pl: p.sentck -= stale
+
+        r2 = self.STREAM_DIST * self.STREAM_DIST
+        for p in pl:
+            pcx = int(p.pos[0] // CHUNK_SZ)
+            pcz = int(p.pos[2] // CHUNK_SZ)
+            want = set()
+
+            for dx in range(-self.STREAM_DIST, self.STREAM_DIST + 1):
+                for dz in range(-self.STREAM_DIST, self.STREAM_DIST + 1):
+                    if dx * dx + dz * dz > r2: continue
+                    want.add((pcx + dx, pcz + dz))
+
+            # forget the ones he walked away from, hell get them again later
+            p.sentck &= want
+
+            # nearest first so the world fills in around him
+            todo = sorted(want - p.sentck,
+                          key=lambda k: (k[0] - pcx) ** 2 + (k[1] - pcz) ** 2)
+
+            for k in todo[:self.STREAM_MAX]:
+                c = self.chunker.chunks.get(k)
+                if not c or not c.gen_ready: continue
+                self.send(p, mkchunk(k[0], k[1], c.voxels), low=True)
+                p.sentck.add(k)
+
+
+    def queueblk(self, x, y, z, bt):
+        with self.blklock: self.pendblk[(x, y, z)] = bt
+
+
+    def flushblks(self):
+        with self.blklock:
+            if not self.pendblk: return
+            chgs = [(x, y, z, bt) for (x, y, z), bt in self.pendblk.items()]
+            self.pendblk.clear()
+
+        # chunked so one blast cant make a giant packet
+        for i in range(0, len(chgs), 512):
+            self.broadcast(mkblockbulk(chgs[i:i+512]))
+
+
+    def spawnent(self, kind, x, y, z, life, vy=ENT_IVELY):
+        eid = self.newid()
         with self.tntlock:
-            mi = None
-            for i, t in enumerate(self.tnts):
-                if t[0] == x and t[2] == z:
-                    mi = i; break
-            if mi is None: return
-            del self.tnts[mi]
-        self.explodetnt(x, y, z)
+            # x/z centred on the block, y = cube bottom
+            self.ents[eid] = [kind, x + 0.5, float(y), z + 0.5, vy, life, False]
+            e = self.ents[eid]
+
+        self.broadcast(mkentspawn(eid, kind, (e[1], e[2], e[3]), life))
+        return eid
 
 
-    def ticktnts(self, dt):
+    def ignitetnt(self, x, y, z, fuse=TNT_FUSE):
+        self.spawnent(TNT_ID, x, y, z, fuse)
+
+
+    def sendents(self, p):
+        # late joiner gets whats already alive
         with self.tntlock:
-            if not self.tnts: return
-            for t in self.tnts: t[3] -= dt
-            ready    = [t for t in self.tnts if t[3] <= 0.0]
-            self.tnts = [t for t in self.tnts if t[3] > 0.0]
-
-        for x, y, z, _ in ready:
-            self.explodetnt(x, y, z)
+            snap = [(i, e[0], e[1], e[2], e[3], e[5]) for i, e in self.ents.items()]
+        for eid, kind, x, y, z, life in snap:
+            self.send(p, mkentspawn(eid, kind, (x, y, z), life))
 
 
-    def explodetnt(self, ox, oy, oz):
-        # server has no loaded chunks -> work directly off modCache.
-        # every sphere position is recorded as destroyed + broadcast to clients.
+    def entdeath(self, kind, x, y, z):
+        if kind == TNT_ID: self.explodetnt(x, y, z)
+
+
+    def entgrav(self, e, dt):
+        bx = int(math.floor(e[1]))
+        bz = int(math.floor(e[3]))
+
+        if e[6]:
+            if not self.chunker.issolid(bx, int(math.floor(e[2])) - 1, bz):
+                e[6] = False
+                e[4] = 0.0
+            return
+
+        e[4] = max(e[4] + ENT_GRAV * dt, ENT_TERMVEL)
+        ny   = e[2] + e[4] * dt
+
+        if e[4] < 0:
+            fb = int(math.floor(ny - 0.001))
+            if self.chunker.issolid(bx, fb, bz):
+                e[2] = float(fb + 1)
+                e[4] = 0.0
+                e[6] = True
+            else:
+                e[2] = ny
+        else:
+            cb = int(math.floor(ny + 1.001))
+            if self.chunker.issolid(bx, cb, bz):
+                e[2] = float(cb) - 1.0
+                e[4] = 0.0
+            else:
+                e[2] = ny
+
+
+    def tickents(self, dt):
+        with self.tntlock:
+            if not self.ents: return
+            for e in self.ents.values():
+                self.entgrav(e, dt)
+                e[5] -= dt
+
+            done = [(i, e) for i, e in self.ents.items() if e[5] <= 0.0]
+            for i, _ in done: del self.ents[i]
+
+        for eid, e in done:
+            self.broadcast(mkentgone(eid))
+            self.entdeath(e[0], e[1], e[2], e[3])
+
+
+    def bcastents(self):
+        with self.tntlock:
+            snap = [(i, e[1], e[2], e[3], e[4]) for i, e in self.ents.items()]
+        for eid, x, y, z, vy in snap:
+            self.broadcast(mkentpos(eid, (x, y, z), vy))
+
+
+    def explodetnt(self, ex, ey, ez):
+        # centre of the 1x1x1 cube -> block it sits in
+        ox = int(math.floor(ex))
+        oy = int(math.floor(ey + 0.5))
+        oz = int(math.floor(ez))
         chain = []
 
         for dx, dy, dz in _TNT_OFFS:
             bx, by, bz = ox + dx, oy + dy, oz + dz
             if by < 0 or by >= CHUNK_H: continue
+
+            prev = self.chunker.getblock(bx, by, bz)
+            if prev == 0: continue           # nothing to destroy
+            if prev == BEDROCK_ID: continue  # indestructible
+            if prev == TNT_ID: chain.append((bx, by, bz))
+
             cx, cz = bx // CHUNK_SZ, bz // CHUNK_SZ
             lx, lz = bx - cx * CHUNK_SZ, bz - cz * CHUNK_SZ
-
-            prev = self.chunker.modCache.get((cx, cz), {}).get((lx, by, lz), 0)
-            if (prev & 0x3FF) == TNT_ID:
-                chain.append((bx, by, bz))
-
             if not self.chunker.setblock(bx, by, bz, 0):
                 self.chunker.recordmod(cx, cz, lx, by, lz, 0)
-            self.broadcast(mkblockupd(bx, by, bz, 0))
+            self.queueblk(bx, by, bz, 0)
 
-        if chain:
-            new = [[bx, by, bz, random.uniform(TNT_CFUSE_MIN, TNT_CFUSE_MAX)] for bx, by, bz in chain]
-            with self.tntlock: self.tnts.extend(new)
+        for bx, by, bz in chain:
+            self.spawnent(TNT_ID, bx, by, bz,
+                          random.uniform(TNT_CFUSE_MIN, TNT_CFUSE_MAX))
 
 
 
@@ -855,8 +1085,6 @@ class Instance:
             for o in self.players.values():
                 if not o.conn: continue
                 for pid, msg in msgs:
-                    if pid != o.pid:
-                        try: o.sock.sendall(msg)
-                        except Exception: pass
+                    if pid != o.pid: self.send(o, msg)
 
 

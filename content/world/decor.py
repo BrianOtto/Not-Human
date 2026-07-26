@@ -29,6 +29,9 @@ class RockSchematic:
 class RockManager:
     def __init__(self, assetdir="assets"):
         self.assetdir = Path(assetdir)
+        # server runs from repo root, cwd cant be trusted
+        if not self.assetdir.is_dir():
+            self.assetdir = Path(__file__).resolve().parent.parent / "assets"
         self.schems = []
         self.loadschems()
         self.rock_density = 0.0003

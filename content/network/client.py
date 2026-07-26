@@ -5,6 +5,7 @@ import numpy as np
 from network.protocol import (
     MessageType, ReadMessage,
     mkjoin, mkposupd, mkblockchg, mkchat, mkitemdrop, mkitempick, mksvrq,
+    mkchunkreq,
 )
 from config import SV_PORT, SV_TIMEOUT, CL_UPD_INT
 from identity import whoami, get_tokenbytes
@@ -50,13 +51,18 @@ class NetworkClient:
         self._dcfired = False
         self.rpl  = {}
         self.plock = threading.Lock()
+        self.wlock = threading.Lock()
 
         # callbacks, set by caller
         self.on_seed        = None
         self.on_playerjoin  = None
         self.on_playerleft  = None
         self.on_update      = None
-        self.on_mods        = None
+        self.on_entspawn    = None
+        self.on_entpos      = None
+        self.on_entgone     = None
+        self.on_svchunks    = None
+        self.on_chunk       = None
         self.on_svmsg       = None
         self.on_chatmsg     = None
         self.on_itemspawn   = None
@@ -129,7 +135,7 @@ class NetworkClient:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.settimeout(5.0)
         self.sock.connect((self.host, self.port))
-        self.sock.settimeout(1.0)
+        self.sock.settimeout(30.0)
         self.reader = ReadMessage(self.sock)
         self.conn   = True
         
@@ -192,11 +198,7 @@ class NetworkClient:
         self.lpitch     = pitch
         self._last_held = _held
         self._last_anif = anim_flags
-        try:
-            self.sock.sendall(mkposupd(pos, yaw, pitch, _held, anim_flags))
-
-        except Exception:
-            self.drop()
+        self.wsend(mkposupd(pos, yaw, pitch, _held, anim_flags))
             
             
      
@@ -206,28 +208,31 @@ class NetworkClient:
             
 
 
-    def sendchange(self, x, y, z, bt):
+    def wsend(self, msg):
         if not self.conn: return
-        try: self.sock.sendall(mkblockchg(x, y, z, bt))
-        except Exception: self.drop()
-        
+        with self.wlock:
+            try: self.sock.sendall(msg)
+            except Exception: self.drop()
+
+
+    def sendchange(self, x, y, z, bt):
+        self.wsend(mkblockchg(x, y, z, bt))
+
 
     def sendchat(self, msg):
-        if not self.conn: return
-        try: self.sock.sendall(mkchat(msg))
-        except Exception: self.drop()
-        
+        self.wsend(mkchat(msg))
+
 
     def senddrop(self, iid, cnt, pos, vel):
-        if not self.conn: return
-        try: self.sock.sendall(mkitemdrop(iid, cnt, pos, vel))
-        except Exception: self.drop()
-        
+        self.wsend(mkitemdrop(iid, cnt, pos, vel))
+
 
     def sendpickup(self, eid):
-        if not self.conn: return
-        try: self.sock.sendall(mkitempick(eid))
-        except Exception: self.drop()
+        self.wsend(mkitempick(eid))
+
+
+    def sendchunkreq(self, cx, cz):
+        self.wsend(mkchunkreq(cx, cz))
         
        
         
@@ -237,40 +242,12 @@ class NetworkClient:
     def _recvloop(self):
         self.log(f"connected as {self.pname}", (200, 255, 200))
         time.sleep(0.2)
-        nc = 0
 
         while self.conn:
             try:
                 msg = self.reader.readmsg()
-                if msg is None:
-                    nc += 1
-                    if nc > 1000:
-                        try:
-                            # peek bc recv blocks
-                            self.sock.settimeout(0.1)
-                            peek = self.sock.recv(1, socket.MSG_PEEK)
-                            self.sock.settimeout(1.0)
-                            if not peek:
-                                self.log("connection closed", (255, 150, 150)); break
-                            nc = 0
-                            
-                            
-                        except socket.timeout:
-                            self.sock.settimeout(1.0)
-                            nc = 0
-                            
-                            
-                        except (socket.error, OSError):
-                            self.log("connection lost", (255, 150, 150)); break
-                            
-                    else:
-                        time.sleep(0.01)
-                        
-                    continue
-                    
-                    
+                if msg is None: continue
 
-                nc   = 0
                 mt, data = msg
                 # print(mt)
 
@@ -280,10 +257,6 @@ class NetworkClient:
                     if self.on_seed: self.on_seed(self.world_seed)
                     
 
-                elif mt == MessageType.MODS:
-                    mods = self.reader.parse_mods(data)
-                    if self.on_mods: self.on_mods(mods)
-                    
 
                 elif mt == MessageType.PLAYER_JOIN:
                     pid, nm, pos = self.reader.parse_playerjoin(data)
@@ -335,6 +308,36 @@ class NetworkClient:
                 elif mt == MessageType.BLOCK_UPDATE:
                     x, y, z, bt = self.reader.parse_blockupdate(data)
                     if self.on_update: self.on_update(x, y, z, bt)
+
+
+                elif mt == MessageType.ENTITY_SPAWN:
+                    eid, kind, pos, life = self.reader.parse_entspawn(data)
+                    if self.on_entspawn: self.on_entspawn(eid, kind, pos, life)
+
+
+                elif mt == MessageType.ENTITY_POS:
+                    eid, pos, vy = self.reader.parse_entpos(data)
+                    if self.on_entpos: self.on_entpos(eid, pos, vy)
+
+
+                elif mt == MessageType.ENTITY_GONE:
+                    eid = self.reader.parse_entgone(data)
+                    if self.on_entgone: self.on_entgone(eid)
+
+
+                elif mt == MessageType.BLOCK_BULK:
+                    for x, y, z, bt in self.reader.parse_blockbulk(data):
+                        if self.on_update: self.on_update(x, y, z, bt)
+
+
+                elif mt == MessageType.CHUNK_DATA:
+                    cx, cz, vox = self.reader.parse_chunk(data)
+                    if self.on_chunk: self.on_chunk(cx, cz, vox)
+
+
+                elif mt == MessageType.SV_CHUNKS:
+                    keys = self.reader.parse_svchunks(data)
+                    if self.on_svchunks: self.on_svchunks(keys)
                     
                     
 

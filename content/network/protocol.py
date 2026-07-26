@@ -1,7 +1,10 @@
 ﻿import struct
 import socket
+import select
+import zlib
 import numpy as np
 from enum import IntEnum
+from config import CHUNK_SZ, CHUNK_H
 
 
 class MessageType(IntEnum):
@@ -22,6 +25,13 @@ class MessageType(IntEnum):
     ITEM_DROP       = 22
     ITEM_PICKUP     = 23
     ITEM_COLLECT    = 24
+    ENTITY_SPAWN    = 40
+    ENTITY_POS      = 41
+    ENTITY_GONE     = 42
+    SV_CHUNKS       = 43
+    BLOCK_BULK      = 44
+    CHUNK_DATA      = 45
+    CHUNK_REQ       = 46
     SERVER_REQUEST  = 30
     SERVER_RESPONSE = 31
     DISCONNECT      = 32
@@ -88,6 +98,53 @@ def mkpos(pid, pos, yaw, pitch, _held=0, anim_flags=0):
 
 def mkblockupd(x, y, z, bt):
     return struct.pack('<BiiiH', MT.BLOCK_UPDATE, x, y, z, bt)
+
+
+
+def mkentspawn(eid, kind, pos, fuse):
+    return struct.pack(
+        '<BIH3ff', MT.ENTITY_SPAWN, eid, kind,
+        float(pos[0]), float(pos[1]), float(pos[2]), float(fuse)
+    )
+
+
+
+def mkentpos(eid, pos, vy):
+    return struct.pack(
+        '<BI3ff', MT.ENTITY_POS, eid,
+        float(pos[0]), float(pos[1]), float(pos[2]), float(vy)
+    )
+
+
+
+def mkentgone(eid):
+    return struct.pack('<BI', MT.ENTITY_GONE, eid)
+
+
+
+def mkblockbulk(chgs):
+    d = struct.pack('<BI', MT.BLOCK_BULK, len(chgs))
+    for x, y, z, bt in chgs: d += struct.pack('<iiiH', x, y, z, bt)
+    return d
+
+
+
+def mkchunk(cx, cz, vox):
+    # voxels squash ~27x, mostly runs of the same id
+    b = zlib.compress(vox.astype('<u2', copy=False).tobytes(), 6)
+    return struct.pack('<BiiI', MT.CHUNK_DATA, cx, cz, len(b)) + b
+
+
+
+def mkchunkreq(cx, cz):
+    return struct.pack('<Bii', MT.CHUNK_REQ, cx, cz)
+
+
+
+def mksvchunks(keys):
+    d = struct.pack('<BI', MT.SV_CHUNKS, len(keys))
+    for cx, cz in keys: d += struct.pack('<ii', cx, cz)
+    return d
 
 
 
@@ -216,16 +273,16 @@ class ReadMessage:
         # recv until buffer has n bytes
         
         while len(self.buffer) < n:
+            r, _, _ = select.select([self.sock], [], [], 1.0)
+            if not r: continue
             try:
                 d = self.sock.recv(max(4096, n - len(self.buffer)))
                 if not d: return False
                 self.buffer += d
-                
-                
+
             except (socket.error, OSError):
                 return False
-                
-                
+
         return True
 
 
@@ -236,18 +293,13 @@ class ReadMessage:
 
     def readmsg(self):
         if not self.buffer:
+            r, _, _ = select.select([self.sock], [], [], 0.1)
+            if not r: return None
             try:
-                self.sock.settimeout(0.1)
                 d = self.sock.recv(4096)
-                self.sock.settimeout(1.0)
                 if not d: return None
                 self.buffer += d
-                
-                
-            except socket.timeout:
-                self.sock.settimeout(1.0)
-                return None
-                
+
             except (socket.error, OSError):
                 return None
 
@@ -272,6 +324,10 @@ class ReadMessage:
             MT.ITEM_COLLECT:   9, # II(8)
             MT.PLAYER_POS:    28, # I(4) + 3f(12) + 2f(8) + H(2) + B(1)
             MT.SERVER_REQUEST: 1,
+            MT.CHUNK_REQ:      9, # ii(8)
+            MT.ENTITY_SPAWN:  23, # I(4) + H(2) + 3f(12) + f(4)
+            MT.ENTITY_POS:    21, # I(4) + 3f(12) + f(4)
+            MT.ENTITY_GONE:    5, # I(4)
         }
         
         
@@ -331,6 +387,41 @@ class ReadMessage:
                 off += 20 + nl
             d = self.buffer[:off]
             self.buffer = self.buffer[off:]
+            return (mt, d)
+
+
+
+        # B + I(cnt) + (iiiH)*cnt
+        if mt == MT.BLOCK_BULK:
+            if not self._pull(5): return None
+            cnt = struct.unpack('<I', self.buffer[1:5])[0]
+            tl  = 5 + cnt * 14
+            if not self._pull(tl): return None
+            d = self.buffer[:tl]
+            self.buffer = self.buffer[tl:]
+            return (mt, d)
+
+
+
+        # B + ii + I(n) + zlib payload
+        if mt == MT.CHUNK_DATA:
+            if not self._pull(13): return None
+            n = struct.unpack('<I', self.buffer[9:13])[0]
+            if not self._pull(13 + n): return None
+            d = self.buffer[:13 + n]
+            self.buffer = self.buffer[13 + n:]
+            return (mt, d)
+
+
+
+        # B + I(cnt) + ii*cnt
+        if mt == MT.SV_CHUNKS:
+            if not self._pull(5): return None
+            cnt = struct.unpack('<I', self.buffer[1:5])[0]
+            tl  = 5 + cnt * 8
+            if not self._pull(tl): return None
+            d = self.buffer[:tl]
+            self.buffer = self.buffer[tl:]
             return (mt, d)
 
 
@@ -429,6 +520,50 @@ class ReadMessage:
     def parse_blockupdate(self, data):
         x, y, z, bt = struct.unpack('<iiiH', data[1:])
         return x, y, z, bt
+
+
+    def parse_entspawn(self, data):
+        eid, kind, x, y, z, fuse = struct.unpack('<IH3ff', data[1:])
+        return eid, kind, np.array([x, y, z], dtype='f4'), fuse
+
+
+    def parse_entpos(self, data):
+        eid, x, y, z, vy = struct.unpack('<I3ff', data[1:])
+        return eid, np.array([x, y, z], dtype='f4'), vy
+
+
+    def parse_entgone(self, data):
+        return struct.unpack('<I', data[1:])[0]
+
+
+    def parse_blockbulk(self, data):
+        cnt = struct.unpack('<I', data[1:5])[0]
+        out = []
+        off = 5
+        for _ in range(cnt):
+            out.append(struct.unpack('<iiiH', data[off:off+14]))
+            off += 14
+        return out
+
+
+    def parse_chunkreq(self, data):
+        return struct.unpack('<ii', data[1:])
+
+
+    def parse_chunk(self, data):
+        cx, cz, n = struct.unpack('<iiI', data[1:13])
+        v = np.frombuffer(zlib.decompress(data[13:13+n]), dtype='<u2')
+        return cx, cz, v.reshape(CHUNK_SZ, CHUNK_H, CHUNK_SZ).astype(np.uint16)
+
+
+    def parse_svchunks(self, data):
+        cnt = struct.unpack('<I', data[1:5])[0]
+        out = []
+        off = 5
+        for _ in range(cnt):
+            out.append(struct.unpack('<ii', data[off:off+8]))
+            off += 8
+        return out
 
 
 

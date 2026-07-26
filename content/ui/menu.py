@@ -12,6 +12,14 @@ from ui.browser import ItemBrowser
 import _respath
 from world.isorender import get_itemicon_anim
 
+CTRLS_TXT = [
+    "[Q] drop",
+    "[CTRL+Q] drop stack",
+    "[DEL] delete slot",
+    "[SHIFT+CTRL+DEL] clear all",
+    "[N]/[M] browser page",
+]
+
 
 
 
@@ -116,11 +124,13 @@ class UIManager:
         xoff = 5
         lh   = self.bfont.get_height() + 2
 
+
         lines = []
-        # 
-        if isinstance(stats, dict):
+        if renderinv: lines = CTRLS_TXT
+        elif isinstance(stats, dict):
             for k, v in stats.items():
                 lines.append(f"{k}: {v}")
+                
         elif isinstance(stats, list): lines = stats
         else: lines = [str(stats)]
         

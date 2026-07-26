@@ -151,6 +151,10 @@ class Chunk:
         self.world.chunker.applymods(self)
         self.gen_ready = True
         self.light_dirty = True
+
+        # headless keeps voxels only, no light/mesh
+        if self.world.chunker.headless: return
+
         self.bakelight()
 
 

@@ -358,13 +358,14 @@ class VoxelWorld:
         self.chunker.updateloads(cx, cz)
         
         self.showborder  = False
+        self.svchunks    = set()
+        self.dbgtags     = {}
         self.showhud     = True
         self.showdebug   = True
         self.netclient   = None
         self.is_client   = False
         self._dcreq      = None
         self.svport      = SV_PORT
-        self.pchg        = set()
         self.pupdates    = []
         self._uplock     = threading.Lock()
         self._wup        = np.array([0.0, 1.0, 0.0], dtype='f4')
@@ -466,15 +467,9 @@ class VoxelWorld:
                 
                 
 
-            self.p.update(dt)
+            if self.groundready(): self.p.update(dt)
             self.particles.update(dt)
-            self.blockentys.update(dt, {
-                'chunker':    self.chunker,
-                'particles':  self.particles,
-                'player':        self.p,
-                'netclient':     self.netclient,
-                'blockentys': self.blockentys,
-            })
+            self.blockentys.update(dt, self.worldctx())
             
             getanims().update(dt)
             pp = self.p.getpos()
@@ -608,6 +603,7 @@ class VoxelWorld:
             if targetb:
                 self.ctx.enable(moderngl.BLEND)
                 self.wireprog['mvp'].write(mvpb)
+                self.wireprog['wcolor'].value = (0.0, 0.0, 0.0, 0.4)
                 self.wireprog['offset'].value = targetb
                 self.wirevao.render(moderngl.LINES)
                 self.ctx.disable(moderngl.BLEND)
@@ -615,9 +611,14 @@ class VoxelWorld:
             if self.showborder:
                 self.ctx.enable(moderngl.BLEND)
                 self.wireprog['mvp'].write(mvpb)
-                for c in self.chunker.chunks.values():
+                for (cx, cz), c in self.chunker.chunks.items():
+                    # green = server has it loaded too
+                    if (cx, cz) in self.svchunks: col = (0.2, 1.0, 0.2, 0.6)
+                    else:                         col = (0.0, 0.0, 0.0, 0.4)
+                    self.wireprog['wcolor'].value = col
                     self.wireprog['offset'].value = (c.offset_x, 0.0, c.offset_z)
                     self.bordervao.render(moderngl.LINES)
+                self.wireprog['wcolor'].value = (0.0, 0.0, 0.0, 0.4)
                 self.ctx.disable(moderngl.BLEND)
                 
                 
@@ -653,6 +654,8 @@ class VoxelWorld:
             
             if self.netclient and self.netclient.isconn():
                 self.renderrmtplayer(mvp, dt)
+
+            if self.showborder: self.renderenttags(mvp)
                 
                 
             
@@ -855,6 +858,15 @@ class VoxelWorld:
         if self.gamma_shader:   self.gamma_shader.release()
         self.chunker.shutdown()
     
+    def worldctx(self):
+        return {
+            'chunker':    self.chunker,
+            'particles':  self.particles,
+            'player':        self.p,
+            'netclient':     self.netclient,
+            'blockentys': self.blockentys,
+        }
+
     def applyupdates(self):
         # drain net updates @ main thread (vbos)
         upd = []
@@ -865,17 +877,18 @@ class VoxelWorld:
                 self.pupdates.clear()
                 
                 
-        for x, y, z, bt in upd:
-            # print(x, y, z, bt)
-            if not self.chunker.setblock(x, y, z, bt):
-                cx, cz = x // CHUNK_SZ, z // CHUNK_SZ
-                lx, lz = x - cx * CHUNK_SZ, z - cz * CHUNK_SZ
-                key = (cx, cz)
-                if key not in self.chunker.modCache:
-                    self.chunker.modCache[key] = {}
-                    
-                self.chunker.modCache[key][(lx, y, lz)] = bt
-                self.chunker.dirtychunks.add(key)
+        if not upd: return
+
+        # chunks not loaded yet come back as misses -> stash them
+        for x, y, z, bt in self.chunker.setblocks(upd):
+            cx, cz = x // CHUNK_SZ, z // CHUNK_SZ
+            lx, lz = x - cx * CHUNK_SZ, z - cz * CHUNK_SZ
+            key = (cx, cz)
+            if key not in self.chunker.modCache:
+                self.chunker.modCache[key] = {}
+
+            self.chunker.modCache[key][(lx, y, lz)] = bt
+            self.chunker.dirtychunks.add(key)
                 
                 
                 
@@ -906,6 +919,9 @@ class VoxelWorld:
         if self.netclient.connect():
             self.is_client = True
             self.chunker.is_server = False
+            self.chunker.is_client = True
+            self.chunker.netmode   = True
+            self.chunker.netreq    = self.netclient.sendchunkreq
             self.bindcallbacks()
             self.ui.chatmsg(f"connected to {host}:{port}", color=(200, 255, 200))
             
@@ -926,10 +942,20 @@ class VoxelWorld:
         self.chunker.is_server = True
     """
 
+    def groundready(self):
+        # netmode -> dont drop thru terrain that hasnt landed yet
+        if not self.chunker.netmode: return True
+        pp = self.p.getpos()
+        c  = self.chunker.chunks.get(
+            (int(pp[0] // CHUNK_SZ), int(pp[2] // CHUNK_SZ)))
+        return c is not None and c.gen_ready
+
+
     def svdisconnect(self, reason="disconnected"):
         # net thread can land here -> only set flag
         if self.netclient: self.netclient.disconnect()
         self.ui.chatmsg(reason, color=(255, 200, 200))
+        self.svchunks = set()
         self._dcreq = reason
 
 
@@ -1004,40 +1030,6 @@ class VoxelWorld:
                 
                 
         
-        def on_mods(mods):
-            with self.statelock:
-                if self._resetreq:
-                    self.pmodpay = mods
-                    return
-            
-            appl, pend = 0, {}
-            self.ui.chatmsg(f"applying {len(mods)} chunks", color=(200, 200, 255))
-            for (cx, cz), cm in mods.items():
-                c = self.chunker.chunks.get((cx, cz))
-                if c and c.gen_ready:
-                    for (lx, y, lz), bt in cm.items():
-                        if 0 <= lx < CHUNK_SZ and 0 <= y < CHUNK_H and 0 <= lz < CHUNK_SZ:
-                            c.voxels[lx, y, lz] = bt
-                            appl += 1
-                    pend[c] = True
-                    
-                    
-                    
-                else:
-                    # not loaded -> stash
-                    if (cx, cz) not in self.chunker.modCache:
-                        self.chunker.modCache[(cx, cz)] = {}
-                    self.chunker.modCache[(cx, cz)].update(cm)
-                    
-                    
-            for c in pend:
-                c.bakelight()
-                c.mesh_built = False
-                self.chunker.queue_chunkbuild.append(c)
-                self.chunker.meshthread_event.set()
-                
-                
-            if appl > 0: self.ui.chatmsg(f"appl {appl} mods", color=(200, 255, 200))
         
         
         
@@ -1045,12 +1037,48 @@ class VoxelWorld:
         
         
         def on_update(x, y, z, bt):
-            if (x, y, z) not in self.pchg:
-                if bt == 0 and self.chunker.getblock(x, y, z) == 60:  # 60 = tnt
-                    with self._tlock:
-                        self.ptasks.append(lambda x=x, y=y, z=z: self.blockentys.activate(x, y, z, 60, _remote=True))
-                with self._uplock:
-                    self.pupdates.append((x, y, z, bt))
+            with self._uplock:
+                self.pupdates.append((x, y, z, bt))
+
+
+        def on_chunk(cx, cz, vox):
+            def ld(): self.chunker.recvchunk(cx, cz, vox)
+            with self._tlock: self.ptasks.append(ld)
+
+
+        def on_svchunks(keys):
+            self.svchunks = set(keys)
+
+
+        def on_entspawn(eid, kind, pos, life):
+            def mk():
+                self.blockentys.activate(
+                    int(pos[0]), int(pos[1]), int(pos[2]), kind,
+                    fuse=life, _remote=True, eid=eid,
+                )
+                e = self.blockentys.byeid(eid)
+                if e is not None: e.pos = pos.copy(); e.tpos = pos.copy()
+
+            with self._tlock: self.ptasks.append(mk)
+
+
+        def on_entpos(eid, pos, vy):
+            def mv():
+                e = self.blockentys.byeid(eid)
+                if e is None: e = self.itementys.byeid(eid)
+                if e is not None: e.setnet(pos, vy)
+
+            with self._tlock: self.ptasks.append(mv)
+
+
+        def on_entgone(eid):
+            def rm():
+                e = self.blockentys.byeid(eid)
+                if e is None: return
+                e.explode(self.worldctx())
+                e.alive = False
+
+            with self._tlock: self.ptasks.append(rm)
                     
         
         def on_playerjoin(pid, nm, pos): self.ui.chatmsg(f"'{nm}' joined", color=(200, 200, 255))
@@ -1109,8 +1137,12 @@ class VoxelWorld:
             self._dcreq = reason or "connection lost"
 
         self.netclient.on_seed        = on_seed
-        self.netclient.on_mods        = on_mods
         self.netclient.on_update      = on_update
+        self.netclient.on_entspawn    = on_entspawn
+        self.netclient.on_entpos      = on_entpos
+        self.netclient.on_entgone     = on_entgone
+        self.netclient.on_svchunks    = on_svchunks
+        self.netclient.on_chunk       = on_chunk
         self.netclient.on_playerjoin  = on_playerjoin
         self.netclient.on_playerleft  = on_playerleft
         self.netclient.on_svmsg       = on_svmsg
@@ -1158,7 +1190,7 @@ class VoxelWorld:
             if p.swingt > 0:
                 
                 swt = p.swingt / 0.3  # normalize 0..1
-                ra  = math.sin(swt * math.pi) * -80.0
+                la  = math.sin(swt * math.pi) * -80.0
                 
                 
             self.pmodel.render(
@@ -1170,7 +1202,7 @@ class VoxelWorld:
                 self.render_helditem.remoterender(
                     mvp, pos,
                     p.yaw, p.pitch, p._held,
-                    ra, self.sun_pos
+                    la, self.sun_pos
                 )
                 
             self.rendertag(mvp, pos, p.nm)
@@ -1183,26 +1215,48 @@ class VoxelWorld:
         
         
 
-    def rendertag(self, mvp, ppos, nm):
-        
-        if nm not in self.text_tag:
+    def renderenttags(self, mvp):
+        for e in self.blockentys.entities:
+            if not e.alive: continue
+            self.rendertag(
+                mvp, e.pos, e.dbgtag(),
+                yoff=1.4, cache=self.dbgtags, maxn=96,
+            )
+
+        for i in self.itementys.items:
+            if not i.active: continue
+            self.rendertag(
+                mvp, i.pos, i.dbgtag(),
+                yoff=0.7, cache=self.dbgtags, maxn=96,
+            )
+
+
+    def tagtex(self, nm, cache, maxn=0):
+        if nm not in cache:
+            # debug text changes constantly, dump the lot before it piles up
+            if maxn and len(cache) >= maxn:
+                for i in cache.values(): i.release()
+                cache.clear()
+
             ts = self.font_tag.render(nm, False, (255, 255, 255))
             w, h = ts.get_size()
             bg = pygame.Surface((w + 2, 11), pygame.SRCALPHA)
             bg.fill((0, 0, 0, 100))
             bg.blit(ts, (1, 1))
-            
+
             t = self.ctx.texture(bg.get_size(), 4, pygame.image.tostring(bg, "RGBA", False))
             t.filter = (moderngl.NEAREST, moderngl.NEAREST)
-            self.text_tag[nm] = t
-            
-            
-            
-        t = self.text_tag[nm]
+            cache[nm] = t
+
+        return cache[nm]
+
+
+    def rendertag(self, mvp, ppos, nm, yoff=2.3, cache=None, maxn=0):
+        t = self.tagtex(nm, self.text_tag if cache is None else cache, maxn)
         t.use(10)
         self.tagprog['tex'].value = 10
         self.tagprog['mvp'].write(mvp.astype('f4').tobytes())
-        tp = ppos + np.array([0.0, 2.3, 0.0], dtype='f4')
+        tp = ppos + np.array([0.0, yoff, 0.0], dtype='f4')
         self.tagprog['center_pos'].write(tp.tobytes())
         
         front =self.p.cam.front

@@ -88,6 +88,10 @@ class Inventory:
             
         return False
 
+    def clear(self):
+        self.slots = [None] * self.size
+        self._held = None
+
     def drop(self, si, count=1):
         if 0 <= si < self.size and self.slots[si]:
             stack  = self.slots[si]

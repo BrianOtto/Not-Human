@@ -160,11 +160,15 @@ warmup_jit_functions()
 
 
 class ChunkManager:
-    def __init__(self, world, render_dist=10, wname="default", is_server=False):
+    def __init__(self, world, render_dist=10, wname="default", is_server=False, headless=False):
         self.world = world
         self.render_dist = render_dist
         self.wname = wname
-        self.is_server = is_server
+        self.is_server = is_server   # owns the world files
+        self.headless  = headless    # no gl, voxels only
+        self.is_client = False   # set on connect, keeps mods thru unload
+        self.netmode   = False   # server owns voxels, we just wait for them
+        self.netreq    = None    # set on connect, asks for a missing chunk
         self.chunks = {}
         self.queue_chunkbuild = deque()
         self.queue_meshupload = Queue()
@@ -184,9 +188,14 @@ class ChunkManager:
         self._cam_front = None
         self.updatecache_threshold = 2.0
         self.pending_decorations = {}
+        self.decordirty = set()   # ready chunks that got decor written late
         self.meshthread_event = threading.Event()
         from concurrent.futures import ThreadPoolExecutor
-        nw = min(4, max(2, (os.cpu_count() or 4) // 2))
+        nc = os.cpu_count() or 4
+        # headless has no renderer to starve, gen is all it does
+        if self.headless: nw = max(2, nc - 1)
+        else:             nw = min(4, max(2, nc // 2))
+        self.genworkers = nw
         self.terrain_executor = ThreadPoolExecutor(max_workers=nw, thread_name_prefix="TerrainGen")
         self.queue_terraingen = deque()
         self.mesh_build_queue = deque()
@@ -220,6 +229,7 @@ class ChunkManager:
         self.loadedmods_cache.clear()
         self.vischunk_cache.clear()
         self.pending_decorations.clear()
+        self.decordirty.clear()
         self.last_camera_chunk = None
         self._cam_pos = None
         self._cam_front = None
@@ -251,7 +261,7 @@ class ChunkManager:
 
         while self.mesh_thread_active:
             wd  = False
-            mif = 8
+            mif = self.genworkers * 2
 
             while len(pfuts) < mif and self.queue_chunkbuild:
                 try:
@@ -279,14 +289,23 @@ class ChunkManager:
 
 
                 if not chunk.gen_ready:
+                    # netmode -> voxels come off the wire, recvchunk finishes it
+                    if self.netmode:
+                        with self.generating_lock:
+                            self.generating_chunks.discard(ck)
+                        if self.netreq: self.netreq(chunk.x, chunk.z)
+                        continue
+
                     self.preloadmods(chunk.x, chunk.z)
                     future = self.terrain_executor.submit(self.genterrainonly, chunk)
                     pfuts[future] = chunk
                     wd = True
                     
                 else:
-                    chunk.mesh_pending = True
-                    self.mesh_build_queue.append(chunk)
+                    # server has no renderer -> voxels only
+                    if not self.headless:
+                        chunk.mesh_pending = True
+                        self.mesh_build_queue.append(chunk)
                     with self.generating_lock:
                         self.generating_chunks.discard(ck)
                     wd = True
@@ -299,7 +318,7 @@ class ChunkManager:
                 ck = (chunk.x, chunk.z)
                 #print(ck)
                 try:
-                    if f.result() and ck in self.chunks:
+                    if f.result() and ck in self.chunks and not self.headless:
                         chunk.mesh_pending = True
                         self.mesh_build_queue.append(chunk)
                         wd = True
@@ -375,6 +394,9 @@ class ChunkManager:
             elif not pfuts:
                 self.meshthread_event.wait(timeout=0.005)
                 self.meshthread_event.clear()
+
+            else:
+                time.sleep(0.0005)  # futures still cooking, dont spin on them
                 
                 
                 
@@ -382,6 +404,33 @@ class ChunkManager:
                 
                 
     
+    def recvchunk(self, cx, cz, vox):
+        # voxels off the wire, server owns them
+        c = self.chunks.get((cx, cz))
+        if c is None:
+            c = Chunk(cx, cz, self.world)
+            self.chunks[(cx, cz)] = c
+
+        c.voxels[:] = vox
+        c.gen_ready   = True
+        c.light_dirty = True
+        c.mesh_built  = False
+
+        if not c.mesh_pending:
+            c.mesh_pending = True
+            self.mesh_build_queue.append(c)
+
+        # seams, neighbours need a relight too
+        for dx, dz in [(-1,0), (1,0), (0,-1), (0,1)]:
+            n = self.chunks.get((cx + dx, cz + dz))
+            if n and n.gen_ready and not n.mesh_pending:
+                n.mesh_pending = True
+                n.light_dirty  = True
+                self.mesh_build_queue.append(n)
+
+        self.meshthread_event.set()
+
+
     def genterrainonly(self, chunk):
         chunk.genchunk()
         return True
@@ -407,15 +456,22 @@ class ChunkManager:
         lx, lz = wx % CHUNK_SZ, wz % CHUNK_SZ
         
         chunk = self.chunks.get((cx, cz))
-        
-        
+
+
         # store as pending <- !chunk OR !chunk.gen_ready
         if not chunk or not chunk.gen_ready:
             key = (cx, cz)
             if key not in self.pending_decorations:
                 self.pending_decorations[key] = []
-                
+
             self.pending_decorations[key].append((lx, wy, lz, bt))
+            return
+
+        # neighbour already done, write it now or the tree half vanishes
+        if chunk.voxels[lx, wy, lz] in (0, 1):
+            chunk.voxels[lx, wy, lz] = bt
+            chunk.light_dirty = True
+            self.decordirty.add((cx, cz))
     
     
     
@@ -452,7 +508,8 @@ class ChunkManager:
                 
 
         for key in rm:
-            if key in self.modCache: del self.modCache[key]
+            # client has no .dat backing, dropping = blocks revert on reload
+            if key in self.modCache and not self.is_client: del self.modCache[key]
             if key in self.loadedmods_cache: del self.loadedmods_cache[key]
             self.dirtychunks.discard(key)
             self.chunks[key].release()
@@ -468,6 +525,46 @@ class ChunkManager:
                 
                 
                 
+    def updateloadsmulti(self, centers, rd=None):
+        # server side, keep voxels around every player
+        if not centers: return
+        rd = self.render_dist if rd is None else rd
+
+        key = tuple(sorted(centers))
+        if self.last_camera_chunk == key: return
+        self.last_camera_chunk = key
+
+        rd_sq = rd * rd
+        ulsq  = (rd + 2) ** 2
+
+        want = set()
+        for ccx, ccz in centers:
+            for dx in range(-rd, rd + 1):
+                for dz in range(-rd, rd + 1):
+                    if dx*dx + dz*dz <= rd_sq:
+                        want.add((ccx + dx, ccz + dz))
+
+        for cx, cz in want: self.load_chunk(cx, cz)
+
+        rm = []
+        for (cx, cz) in self.chunks:
+            keep = False
+            for ccx, ccz in centers:
+                if (cx - ccx)**2 + (cz - ccz)**2 <= ulsq:
+                    keep = True; break
+            if not keep: rm.append((cx, cz))
+
+        for k in rm:
+            if k in self.modCache and not self.is_client: del self.modCache[k]
+            if k in self.loadedmods_cache: del self.loadedmods_cache[k]
+            self.dirtychunks.discard(k)
+            self.chunks[k].release()
+            del self.chunks[k]
+
+        if self.queue_chunkbuild: self.meshthread_event.set()
+
+
+
     def priorbuildq(self, cam_cx, cam_cz):
         if not self.queue_chunkbuild: return
         q = sorted(list(self.queue_chunkbuild), key=lambda c: (c.x - cam_cx)**2 + (c.z - cam_cz)**2)
@@ -759,6 +856,8 @@ class ChunkManager:
         if 0 <= lx < CHUNK_SZ and 0 <= lz < CHUNK_SZ:
             c.voxels[lx, y, lz] = bt
             self.recordmod(cx, cz, lx, y, lz, bt)
+            if self.headless: return True   # no light/mesh needed
+
             c.bakelight()
             c.mesh_built = False
             rbld = [c]
@@ -810,6 +909,48 @@ class ChunkManager:
         
         
     
+    def touchn(self, touch, cx, cz):
+        n = self.chunks.get((cx, cz))
+        if n and n.gen_ready: touch[(cx, cz)] = n
+
+
+    def setblocks(self, chgs):
+        # batch, relight+rebuild each chunk once instead of once per block
+        touch = {}
+        miss  = []
+
+        for x, y, z, bt in chgs:
+            if y < 0 or y >= CHUNK_H: continue
+            cx, cz = x // CHUNK_SZ, z // CHUNK_SZ
+            c = self.chunks.get((cx, cz))
+            if not c or not c.gen_ready:
+                miss.append((x, y, z, bt)); continue
+
+            lx, lz = x - c.offset_x, z - c.offset_z
+            if not (0 <= lx < CHUNK_SZ and 0 <= lz < CHUNK_SZ):
+                miss.append((x, y, z, bt)); continue
+
+            c.voxels[lx, y, lz] = bt
+            self.recordmod(cx, cz, lx, y, lz, bt)
+            touch[(cx, cz)] = c
+
+            if   lx == 0:            self.touchn(touch, cx - 1, cz)
+            elif lx == CHUNK_SZ - 1: self.touchn(touch, cx + 1, cz)
+            if   lz == 0:            self.touchn(touch, cx, cz - 1)
+            elif lz == CHUNK_SZ - 1: self.touchn(touch, cx, cz + 1)
+
+        if self.headless: return miss
+
+        for c in touch.values():
+            c.bakelight()
+            c.mesh_built = False
+
+        for c in touch.values():
+            self.rebuildc(c)
+
+        return miss
+
+
     def breakblock(self, x, y, z):
         bt = self.getblock(x, y, z)
         
