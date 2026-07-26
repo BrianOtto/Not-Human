@@ -512,9 +512,10 @@ class VoxelWorld:
             self.chunker.bake_mods()
             
 
-            mvp  = self.p.cam.mvpmat(inverted=(self.p.cmode == 2))
-            cpos = self.p.cam.pos
-            cfr  = self.p.cam.front
+            rc   = self.p.rcam()
+            mvp  = rc.mvpmat(inverted=(not self.p.freecam and self.p.cmode == 2))
+            cpos = rc.pos
+            cfr  = rc.front
             far  = F_PLANE
             
             rad   = math.radians(self.sun_angle)
@@ -631,7 +632,7 @@ class VoxelWorld:
             self.sunprog['mvp'].write(mvpb)
             self.sunprog['sun_pos'].write(self.sun_pos.tobytes())
             
-            front =-self.p.cam.front if self.p.cmode == 2 else self.p.cam.front
+            front =-rc.front if (not self.p.freecam and self.p.cmode == 2) else rc.front
             
             
             cr = np.cross(front, self._wup)
@@ -682,7 +683,7 @@ class VoxelWorld:
                 l_arm_z=l_arm_z,
                 headyawoff=phead_yaw,
                 crouch=self.p._smthcrouch,
-                _hidehead=(self.p.cmode == 0)
+                _hidehead=(self.p.cmode == 0 and not self.p.freecam)
             )
             
             

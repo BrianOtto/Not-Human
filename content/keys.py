@@ -124,9 +124,17 @@ def onEvent(w, events):
                 w.ui.chatmsg(f"Gamma: {'ON' if enabled else 'OFF'}", color=(255, 255, 150))
 
             elif i.key == K_F5 and not w.oninv:
-                w.p.togglecam()
-                modes = ["First", "Third Back", "Third Front", "Orbital"]
-                w.ui.chatmsg(f"Camera: {modes[w.p.cmode]}", color=(200, 200, 255))
+                if pygame.key.get_mods() & KMOD_SHIFT:
+                    w.p.togglefreecam()
+                    w.ui.chatmsg(f"Freecam: {'ON' if w.p.freecam else 'OFF'}", color=(200, 200, 255))
+                else:
+                    w.p.togglecam()
+                    modes = ["First", "Third Back", "Third Front", "Orbital"]
+                    w.ui.chatmsg(f"Camera: {modes[w.p.cmode]}", color=(200, 200, 255))
+
+            elif i.key == K_c and w.p.freecam and not w.oninv:
+                w.p.togglefcctrl()
+                w.ui.chatmsg(f"Freecam control: {'camera' if w.p.fcmove else 'player'}", color=(200, 200, 255))
 
             elif i.key == K_F11 and not w.oninv:
                 w._fs = not w._fs

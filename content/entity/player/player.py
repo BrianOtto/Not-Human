@@ -33,6 +33,11 @@ class Player:
         ep    = self.pos.copy()
         ep[1] += self.physics.eye_h
         self.cam = Camera(pos=ep)
+        self.eye = ep.copy()
+
+        self.freecam = False
+        self.fcmove  = True
+        self.fcam    = None
 
         self.on_jump    = False
         self.on_toggleflight = False
@@ -90,7 +95,26 @@ class Player:
             self.orb_yaw   = self.cam.yaw
             self.orb_pitch = 30.0
 
+    def togglefreecam(self):
+        self.freecam = not self.freecam
+        if self.freecam:
+            self.fcam = Camera(pos=self.cam.pos.copy())
+            self.fcam.yaw = self.fcam.target_yaw = self.cam.yaw
+            self.fcam.pitch = self.fcam.target_pitch = self.cam.pitch
+            self.fcam.updatevecs()
+            self.fcmove = True
+
+    def togglefcctrl(self):
+        self.fcmove = not self.fcmove
+
+    def rcam(self):
+        return self.fcam if self.freecam else self.cam
+
     def oninput(self, dt):
+        if self.freecam and self.fcmove:
+            self.fcam.oninput(dt)
+            return
+
         keys = pygame.key.get_pressed()
 
         if keys[K_f]:
@@ -162,6 +186,7 @@ class Player:
             ep[0] += math.cos(yr) * self.physics.eye_f
             ep[2] += math.sin(yr) * self.physics.eye_f
             self.cam.pos = ep
+            self.eye = ep.copy()
             return
             
             
@@ -199,6 +224,7 @@ class Player:
         yr    = math.radians(self.cam.yaw)
         ep[0] += math.cos(yr) * self.physics.eye_f
         ep[2] += math.sin(yr) * self.physics.eye_f
+        self.eye = ep.copy()
 
         speed = math.sqrt(self.vel[0]**2 + self.vel[2]**2)
         ta    = 0.05 if self.on_ground and speed > 0.1 and self.cmode == 0 else 0.0
@@ -383,6 +409,9 @@ class Player:
 
 
     def onmouse(self):
+        if self.freecam and self.fcmove:
+            self.fcam.onmouse()
+            return
         if self.cmode == 3:
             from config import SENSIVITY
             dx, dy = pygame.mouse.get_rel()
@@ -400,7 +429,8 @@ class Player:
             self.orbital_distance = max(2.0, min(20.0, self.orbital_distance - y * 0.5))
 
     def getpos(self): return self.pos.copy()
-    def eyepos(self): return self.cam.pos.copy()
+
+    def eyepos(self): return self.eye.copy()
     def getvel(self): return self.vel.copy()
     
     
