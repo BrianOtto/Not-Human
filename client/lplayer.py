@@ -1,9 +1,13 @@
-import os, json, time
+import os, sys, json, time
 import numpy as np
 import moderngl
 import pygame
 
 from lconst import CONTENT_DIR
+
+sys.path.insert(0, CONTENT_DIR)
+from skin import skintex
+sys.path.pop(0)
 
 _MODEL_JSON = os.path.join(CONTENT_DIR, "entity", "player", "model.json")
 _SH_DIR     = os.path.join(CONTENT_DIR, "shaders")
@@ -60,12 +64,7 @@ class MiniPlayer:
 
 
     def _skin(self, fp):
-        img  = pygame.image.load(fp).convert_alpha()
-        img  = pygame.transform.flip(img, False, True)
-        data = pygame.image.tostring(img, "RGBA")
-        tex  = self.ctx.texture(img.get_size(), 4, data)
-        tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
-        return tex
+        return skintex(self.ctx, fp)
 
 
     def _mesh(self, verts=[], uvs=[], norms=[], pts=[]):

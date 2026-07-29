@@ -1,14 +1,16 @@
-﻿import socket
+﻿import os
+import socket
 import threading
 import time
 import numpy as np
 from network.protocol import (
-    MessageType, ReadMessage,
+    MessageType, ReadMessage, validskin,
     mkjoin, mkposupd, mkblockchg, mkchat, mkitemdrop, mkitempick, mksvrq,
-    mkchunkreq,
+    mkchunkreq, mkskin,
 )
 from config import SV_PORT, SV_TIMEOUT, CL_UPD_INT
 from identity import whoami, get_tokenbytes
+import _respath
 
 
 class RemotePlayer:
@@ -32,6 +34,7 @@ class RemotePlayer:
         self._held  = 0
         self.aflags = 0
         self.swingt = 0.0
+        self.skin   = None
 
 
 
@@ -140,6 +143,7 @@ class NetworkClient:
         self.conn   = True
         
         self.sock.sendall(mkjoin(self.pname, token))
+        self.sendskin()
         self._recv_thread = threading.Thread(target=self._recvloop, daemon=True)
         self._recv_thread.start()
         
@@ -231,6 +235,14 @@ class NetworkClient:
         self.wsend(mkitempick(eid))
 
 
+    def sendskin(self):
+        fp = _respath.text_player()
+        if not os.path.exists(fp): return
+
+        with open(fp, 'rb') as f: png = f.read()
+        if validskin(png): self.wsend(mkskin(png))
+
+
     def sendchunkreq(self, cx, cz):
         self.wsend(mkchunkreq(cx, cz))
         
@@ -274,6 +286,13 @@ class NetworkClient:
                     
                     
                     
+
+                elif mt == MessageType.PLAYER_SKIN:
+                    pid, png = self.reader.parse_playerskin(data)
+                    if validskin(png):
+                        with self.plock:
+                            if pid in self.rpl: self.rpl[pid].skin = png
+
 
                 elif mt == MessageType.PLAYER_LEFT:
                     pid = self.reader.parse_playerleft(data)

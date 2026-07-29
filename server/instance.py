@@ -19,6 +19,7 @@ from network.protocol import (
     mkservmsg, mkpos, mkitemcollect, mkdisconnect, mksvreply, mkleft, mkseed, mkpjoin,
     mkblockupd, mkchat, mkitemspawn, mkitemdespawn, mklist,
     mkentspawn, mkentpos, mkentgone, mksvchunks, mkblockbulk, mkchunk,
+    mkplayerskin, validskin,
 )
 from identity import bytetoken
 
@@ -66,6 +67,7 @@ class PlayerState:
         self.pitch  = 0.0
         self._held  = 0
         self.aflags = 0
+        self.skin   = b''
         self.lupd   = time.time()
         self.reader = ReadMessage(sock)
         self.conn   = True
@@ -464,6 +466,7 @@ class Instance:
             self.send(p, mksvchunks(sorted(self.chunker.chunks.keys())))
             time.sleep(0.01)
             self.sendplrs(p)
+            self.sendskins(p)
             time.sleep(0.01)
             self.broadcast(
                 mkpjoin(p.pid, p.nm, p.pos),
@@ -513,6 +516,16 @@ class Instance:
                         p._held    = held
                         p.aflags   = flags
                         p.lupd     = time.time()
+
+                elif mt == MessageType.SKIN_UPLOAD:
+                    png = p.reader.parse_skin(data)
+                    if validskin(png):
+                        p.skin = png
+                        self.broadcast(
+                            mkplayerskin(p.pid, png),
+                            exclude_pid=p.pid
+                        )
+
 
                 elif mt == MessageType.CHUNK_REQ:
                     cx, cz = p.reader.parse_chunkreq(data)
@@ -642,6 +655,15 @@ class Instance:
             pd = {pid: {'pos': o.pos.copy(), 'nm': o.nm}
                   for pid, o in self.players.items() if pid != p.pid}
         if pd: self.send(p, mklist(pd))
+
+
+
+
+    def sendskins(self, p):
+        with self.plock:
+            sk = [(pid, o.skin) for pid, o in self.players.items()
+                  if pid != p.pid and o.skin]
+        for pid, png in sk: self.send(p, mkplayerskin(pid, png))
 
 
 

@@ -11,6 +11,7 @@ class MessageType(IntEnum):
     JOIN            = 1
     UPDATE_POS      = 2
     BLOCK_CHANGE    = 3
+    SKIN_UPLOAD     = 4
     _SEED           = 10
     PLAYER_JOIN     = 11
     PLAYER_LEFT     = 12
@@ -20,6 +21,7 @@ class MessageType(IntEnum):
     SV_MESSAGE      = 16
     MODS            = 17
     CHAT            = 18
+    PLAYER_SKIN     = 19
     ITEM_SPAWN      = 20
     ITEM_DESPAWN    = 21
     ITEM_DROP       = 22
@@ -38,6 +40,13 @@ class MessageType(IntEnum):
 
 
 MT = MessageType
+
+SKIN_MAX  = 256 * 1024
+PNG_MAGIC = b'\x89PNG\r\n\x1a\n'
+
+
+def validskin(png):
+    return bool(png) and len(png) <= SKIN_MAX and png[:8] == PNG_MAGIC
 
 
 
@@ -59,6 +68,16 @@ def mkposupd(pos, yaw, pitch, _held=0, anim_flags=0):
 
 
 
+
+
+
+def mkskin(png):
+    return struct.pack('<BI', MT.SKIN_UPLOAD, len(png)) + png
+
+
+
+def mkplayerskin(pid, png):
+    return struct.pack('<BII', MT.PLAYER_SKIN, pid, len(png)) + png
 
 
 
@@ -391,6 +410,34 @@ class ReadMessage:
 
 
 
+        # B + I(n) + png
+        if mt == MT.SKIN_UPLOAD:
+            if not self._pull(5): return None
+            n = struct.unpack('<I', self.buffer[1:5])[0]
+            if n > SKIN_MAX:
+                self.buffer = b''
+                return None
+            if not self._pull(5 + n): return None
+            d = self.buffer[:5 + n]
+            self.buffer = self.buffer[5 + n:]
+            return (mt, d)
+
+
+
+        # B + I(pid) + I(n) + png
+        if mt == MT.PLAYER_SKIN:
+            if not self._pull(9): return None
+            n = struct.unpack('<I', self.buffer[5:9])[0]
+            if n > SKIN_MAX:
+                self.buffer = b''
+                return None
+            if not self._pull(9 + n): return None
+            d = self.buffer[:9 + n]
+            self.buffer = self.buffer[9 + n:]
+            return (mt, d)
+
+
+
         # B + I(cnt) + (iiiH)*cnt
         if mt == MT.BLOCK_BULK:
             if not self._pull(5): return None
@@ -501,6 +548,16 @@ class ReadMessage:
         nl      = struct.unpack('<I', data[16:20])[0]
         nm      = data[20:20+nl].decode('utf-8', errors='replace')
         return pid, nm, np.array([x, y, z], dtype='f4')
+
+
+    def parse_skin(self, data):
+        n = struct.unpack('<I', data[1:5])[0]
+        return data[5:5+n]
+
+
+    def parse_playerskin(self, data):
+        pid, n = struct.unpack('<II', data[1:9])
+        return pid, data[9:9+n]
 
 
     def parse_playerleft(self, data):

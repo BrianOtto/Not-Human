@@ -2,9 +2,9 @@ import json
 import os
 import numpy as np
 import moderngl
-import pygame
 import _respath
 import shaders
+from skin import skintex
 
 PART_BODY  = 0.0
 PART_HEAD  = 1.0
@@ -69,12 +69,7 @@ class PlayerModel:
     def loadskin(self):
         if not os.path.exists(self._spath):
             self._spath = _respath.text_player()
-        img  = pygame.image.load(self._spath).convert_alpha()
-        img  = pygame.transform.flip(img, False, True)
-        data = pygame.image.tostring(img, "RGBA")
-        tex  = self.ctx.texture(img.get_size(), 4, data)
-        tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
-        return tex
+        return skintex(self.ctx, self._spath)
         
         
 
@@ -198,9 +193,9 @@ class PlayerModel:
     def render(
         self, mvp, pos, yaw, pitch=0.0, sun_pos=None,
         r_arm=0.0, l_arm=0.0, r_leg=0.0, l_leg=0.0, r_arm_z=0.0, l_arm_z=0.0,
-        headyawoff=0.0, crouch=0.0, _hidehead=False
+        headyawoff=0.0, crouch=0.0, _hidehead=False, tex=None
     ):
-        self.skin_tex.use(0)
+        (tex or self.skin_tex).use(0)
         self.prog['mvp'].write(mvp.astype('f4').tobytes())
         self.prog['player_pos'].write(pos.astype('f4').tobytes())
         self.prog['player_yaw'].value        = yaw

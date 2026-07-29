@@ -19,5 +19,5 @@ client/token.bin
 .vscode/
 .idea/
 *.swp
-
+.*/
 .test/

@@ -36,6 +36,7 @@ import shaders
 from ui.menu import UIManager
 from network.client import NetworkClient
 from entity.player.model import PlayerModel
+from skin import skintex
 from ui.hud import HUDManager
 from ui.inv import Inventory
 from engine.particle import ParticleManager
@@ -241,6 +242,7 @@ class VoxelWorld:
         
 
         self.pmodel = PlayerModel(self.ctx, _spath=_respath.text_player())
+        self.rskins = {}
         self.sunprog = self.ctx.program(
             vertex_shader   = shaders.load("sun.vert"),
             fragment_shader = shaders.load("sun.frag")
@@ -851,6 +853,7 @@ class VoxelWorld:
     def cleanup(self):
         self.savelocal()
         if self.netclient: self.netclient.disconnect()
+        self.dropskins()
         self.pmodel.release()
         self.particles.release()
         if self.render_helditem: self.render_helditem.release()
@@ -1155,11 +1158,17 @@ class VoxelWorld:
         
         
 
+    def dropskins(self, keep=()):
+        for pid in [i for i in self.rskins if i not in keep]:
+            self.rskins.pop(pid).release()
+
+
     def renderrmtplayer(self, mvp, dt):
         if not self.netclient or not self.netclient.isconn(): return
         rp = self.netclient.remoteplayers()
+        self.dropskins(rp)
         if not rp: return
-        
+
         
         
         self.ctx.enable(moderngl.DEPTH_TEST)
@@ -1194,9 +1203,16 @@ class VoxelWorld:
                 la  = math.sin(swt * math.pi) * -80.0
                 
                 
+            if p.skin is not None:
+                old = self.rskins.pop(p.pid, None)
+                if old: old.release()
+                self.rskins[p.pid] = skintex(self.ctx, p.skin)
+                p.skin = None
+
             self.pmodel.render(
                 mvp, pos, p.yaw, p.pitch, self.sun_pos,
-                r_arm=ra, l_arm=la, r_leg=rl, l_leg=ll
+                r_arm=ra, l_arm=la, r_leg=rl, l_leg=ll,
+                tex=self.rskins.get(p.pid)
             )
                 
             if p._held > 0 and self.render_helditem:
