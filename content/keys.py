@@ -136,6 +136,10 @@ def onEvent(w, events):
                 w.p.togglefcctrl()
                 w.ui.chatmsg(f"Freecam control: {'camera' if w.p.fcmove else 'player'}", color=(200, 200, 255))
 
+            elif i.key == K_v and w.p.freecam and not w.oninv:
+                w.p.togglefcstick()
+                w.ui.chatmsg(f"Freecam stick: {'ON' if w.p.fcstick else 'OFF'}", color=(200, 200, 255))
+
             elif i.key == K_F11 and not w.oninv:
                 w._fs = not w._fs
                 pygame.display.toggle_fullscreen()

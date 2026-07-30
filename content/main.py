@@ -786,18 +786,29 @@ class VoxelWorld:
             ]
             
             gst = "ON" if self.gamma_shader.enabled else "OFF"
-            keybinds = [
-                "github.com/maladaptivesoftware",
-                "",
-                "Down [LShift]",
-                "Sprint [LCtrl]",
-                "Toggle Flight [F]",
-                "Camera [F5]",
-                f"Gamma [{gst}] [F4]",
-                "Borders [F3]",
-                "Fullscreen [F11]",
-                "HUD [F1]",
-            ]
+            if self.p.freecam:
+                keybinds = [
+                    "github.com/maladaptivesoftware",
+                    "",
+                    "Down [LCtrl]",
+                    "Sprint [LShift]",
+                    f"Move [{'Cam' if self.p.fcmove else 'Body'}] [C]",
+                    f"Stick [{'ON' if self.p.fcstick else 'OFF'}] [V]",
+                    "Exit [Shift+F5]",
+                ]
+            else:
+                keybinds = [
+                    "github.com/maladaptivesoftware",
+                    "",
+                    "Down [LCtrl]",
+                    "Sprint [LShift]",
+                    "Toggle Flight [F]",
+                    "Camera [F5]",
+                    f"Gamma [{gst}] [F4]",
+                    "Borders [F3]",
+                    "Fullscreen [F11]",
+                    "HUD [F1]",
+                ]
 
             self.hud.render(self.p)
 

@@ -37,6 +37,7 @@ class Player:
 
         self.freecam = False
         self.fcmove  = True
+        self.fcstick = False
         self.fcam    = None
 
         self.on_jump    = False
@@ -103,9 +104,13 @@ class Player:
             self.fcam.pitch = self.fcam.target_pitch = self.cam.pitch
             self.fcam.updatevecs()
             self.fcmove = True
+            self.fcstick = False
 
     def togglefcctrl(self):
         self.fcmove = not self.fcmove
+
+    def togglefcstick(self):
+        self.fcstick = not self.fcstick
 
     def rcam(self):
         return self.fcam if self.freecam else self.cam
@@ -317,6 +322,10 @@ class Player:
                 self.cam.yaw   = math.degrees(math.atan2(ld[2], ld[0]))
                 
                 
+
+        # drag freecam
+        if self.freecam and self.fcstick:
+            self.fcam.pos += self.pos - self.last_pos
 
         self.anim_time += dt
 
