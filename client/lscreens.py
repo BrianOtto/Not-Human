@@ -118,7 +118,7 @@ class MenuScreen(Screen):
 
         self._drawplayer(surf)
 
-        v = f"Version {__VERSION__}\ngithub.com/maladaptivesoftware\nyoutube.com/@maladaptivesoftware"
+        v = f"Version {__VERSION__}\ngithub.com/paaracetamol\nyoutube.com/@paraccetamol"
         w = "\nBEWARE: This is a minecraft CLONE, not affiliated with mojang or related!"
         l = "\n© Public license, feel free to modify and republish as you wish, give Credit!"
         t = self.bfont.render(v+w+l, False, GRAY)

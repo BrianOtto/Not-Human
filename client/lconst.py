@@ -72,11 +72,11 @@ GREEN  = (80, 255, 80)
 
 
 SPLASH_TEXTS = [
-    "github.com/maladaptivesoftware",
+    "github.com/paaracetamol",
     "Not affiliated with Mojang!",
     "Now in Python :^)",
     "Cyclopses not included!",
-    "youtube.com/@maladaptivesoftware",
+    "youtube.com/@paraccetamol",
     "Also try Minecraft!",
     "Runs on your toaster!",
     "Milk outside a bag of milk outside\na bag of milk outside a bag of...",
