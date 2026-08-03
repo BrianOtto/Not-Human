@@ -810,7 +810,7 @@ class VoxelWorld:
                     "HUD [F1]",
                 ]
 
-            self.hud.render(self.p)
+            if self.showhud: self.hud.render(self.p)
 
             tablist = None
             if self.tabdown and self.netclient and self.netclient.isconn():
