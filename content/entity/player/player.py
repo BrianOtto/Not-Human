@@ -22,6 +22,7 @@ class Player:
         self.vel = np.array([0.0, 0.0, 0.0], dtype='f4')
 
         self.on_ground = False
+        self.gmode  = 1
         self.fly    = True
         self.sprint = False
         self.crouching = False
@@ -48,6 +49,9 @@ class Player:
 
         self.ui       = None
         self.last_pos = self.pos.copy()
+
+        self.mtgt = None
+        self.mprog = 0.0
 
         self.anim_time    = 0.0
         self.is_breaking  = False
@@ -82,7 +86,21 @@ class Player:
         self.orb_yaw      = 0.0
         self.orb_pitch    = 30.0
 
+    def setgmode(self, m):
+        self.gmode = m
+        if m == 0:
+            self.fly    = False
+            self.vel[1] = 0
+            self.mtgt   = None
+            self.mprog  = 0.0
+
+    def togglegmode(self):
+        self.setgmode(0 if self.gmode else 1)
+        return self.gmode
+
     def toggleflight(self):
+        if not self.gmode: return
+
         self.fly = not self.fly
         if self.fly:
             self.vel[1] = 0

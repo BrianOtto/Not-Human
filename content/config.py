@@ -25,6 +25,11 @@ BREAK_T           = 0.3
 RAYCAST_DIST      = 5.0
 
 
+HARDNESS          = 1.0
+MINE_MULT         = 1.5          # sec p hardpoint
+CRACK_SCL         = 1.008 
+
+
 FOV               = 70.0
 N_PLANE           = 0.1
 F_PLANE           = 500.0

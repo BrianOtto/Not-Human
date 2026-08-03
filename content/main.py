@@ -19,8 +19,9 @@ from world.terrain import ChunkManager, PerlinNoise, get_biome, BIOME_NAMES
 from world.blocks import (
     _FACINGTYPE, FACINGNONE, FACING_H, FACING_AX,
     FACE_N, FACE_S, FACE_E, FACE_W,
-    AXY, AXX, AXZ,
+    AXY, AXX, AXZ, UV_W, UV_H,
 )
+from world import blocks
 
 
 import config
@@ -28,7 +29,8 @@ from config import (
     CHUNK_SZ, CHUNK_H, SEA_LEVEL, WIN_W, WIN_H,
     RENDER_DIST, SEED, SV_PORT, WATER_OFF,
     WATER_PLANE, SUN_SZ, HLIGHT_SCL, LINE_W,
-    SCL_HUD, F_PLANE
+    SCL_HUD, F_PLANE, RAYCAST_DIST,
+    HARDNESS, MINE_MULT, CRACK_SCL
 )
 
 
@@ -239,6 +241,31 @@ class VoxelWorld:
         self.bordervao = self.ctx.vertex_array(
             self.wireprog, [(self.bordervbo, '3f', 'in_pos')]
         )
+
+
+        # destroy_stage overlay
+        self.crackprog = shaders.prog(self.ctx, "crack.vert", "crack.frag")
+        cfaces = (
+            ((0,0,0), (1,0,0), (1,1,0), (0,1,0)),   # -z
+            ((1,0,1), (0,0,1), (0,1,1), (1,1,1)),   # +z
+            ((0,0,1), (0,0,0), (0,1,0), (0,1,1)),   # -x
+            ((1,0,0), (1,0,1), (1,1,1), (1,1,0)),   # +x
+            ((0,0,1), (1,0,1), (1,0,0), (0,0,0)),   # -y
+            ((0,1,0), (1,1,0), (1,1,1), (0,1,1)),   # +y
+        )
+        cuv = ((0,0), (1,0), (1,1), (0,1))
+        cv  = []
+        for i in cfaces:
+            for j in (0, 1, 2, 0, 2, 3):
+                cv += [(k - 0.5) * CRACK_SCL + 0.5 for k in i[j]]
+                cv += list(cuv[j])
+
+        self.crackvbo = self.ctx.buffer(np.array(cv, dtype='f4').tobytes())
+        self.crackvao = self.ctx.vertex_array(
+            self.crackprog, [(self.crackvbo, '3f 2f', 'in_pos', 'in_uv')]
+        )
+        self.crackuvs = [blocks.getuv(f"destroy_stage_{i}") for i in range(10)]
+        self.crackprog['texture0'].value = 0
         
 
         self.pmodel = PlayerModel(self.ctx, _spath=_respath.text_player())
@@ -350,6 +377,7 @@ class VoxelWorld:
                 if 'pos' in pd: self.p.teleport(np.array(pd['pos'], dtype='f4'))
                 if 'yaw' in pd:      self.p.cam.yaw = float(pd['yaw'])
                 if 'pitch' in pd:    self.p.cam.pitch = float(pd['pitch'])
+                if 'gm' in pd:       self.p.setgmode(int(pd['gm']))
                 
             except Exception:
                 pass
@@ -437,6 +465,74 @@ class VoxelWorld:
     def issolid(self, x, y, z):
         return self.chunker.issolid(x, y, z)
 
+    def breakblock(self, bx, by, bz):
+        bt = self.chunker.getblock(bx, by, bz)
+
+        # fuckass redstonbe
+        from world.blocks import REDSTONE_WIRE
+        if bt == REDSTONE_WIRE:
+            self.render_extruded.rm_block(bx, by, bz)
+
+        self.chunker.breakblock(bx, by, bz)
+
+        if bt and bt != 0:
+            self.particles.spawn(bx, by, bz, bt)
+
+        if self.netclient and self.netclient.isconn():
+            self.netclient.sendchange(bx, by, bz, 0)
+
+        if not self.p.gmode: self.dropblock(bx, by, bz, bt)
+
+
+    
+    # TODO drop tables
+    # return self -> drop
+    def dropblock(self, bx, by, bz, bt):
+        from items.registry import REGISTRY
+        if not bt or not REGISTRY.exists(bt): return
+
+        pos = np.array([bx + 0.5, by + 0.5, bz + 0.5], dtype='f4')
+
+        if self.netclient and self.netclient.isconn():
+            # server owns the entity, it pops it for everyone
+            self.netclient.senddrop(bt, 1, pos, np.array([0.0, 2.0, 0.0], dtype='f4'))
+        else:
+            self.itementys.spawn(bt, 1, pos)
+
+
+
+    def onmine(self, dt):
+        p  = self.p
+        on = (
+            not p.gmode and not self.oninv and not self.onchat
+            and pygame.event.get_grab() 
+            and pygame.mouse.get_pressed()[0]
+        )
+
+        tb = p.targetblock(RAYCAST_DIST)[0] if on else None
+
+        if tb is None:
+            p.mtgt  = None
+            p.mprog = 0.0
+            return
+
+        # off block
+        if tb != p.mtgt:
+            p.mtgt  = tb
+            p.mprog = 0.0
+
+        p.mprog += dt / (HARDNESS * MINE_MULT)
+
+        # retrigger swing
+        if not p.is_breaking:
+            p.is_breaking = True
+            p.break_time  = 0.0
+
+        if p.mprog >= 1.0:
+            self.breakblock(*tb)
+            p.mtgt  = None
+            p.mprog = 0.0
+
     def onevent(self, events):
         return keys.onEvent(self, events)
         
@@ -468,6 +564,8 @@ class VoxelWorld:
                 
                 
                 
+
+            self.onmine(dt)
 
             if self.groundready(): self.p.update(dt)
             self.particles.update(dt)
@@ -609,6 +707,18 @@ class VoxelWorld:
                 self.wireprog['wcolor'].value = (0.0, 0.0, 0.0, 0.4)
                 self.wireprog['offset'].value = targetb
                 self.wirevao.render(moderngl.LINES)
+
+                if self.p.mtgt == targetb and self.p.mprog > 0.0:
+                    st = min(int(self.p.mprog * 10), 9)
+                    self.ctx.disable(moderngl.CULL_FACE)
+                    self.texture.use(0)
+                    self.crackprog['mvp'].write(mvpb)
+                    self.crackprog['offset'].value = targetb
+                    self.crackprog['uv0'].value    = self.crackuvs[st]
+                    self.crackprog['uvsz'].value   = (UV_W, UV_H)
+                    self.crackvao.render()
+                    self.ctx.enable(moderngl.CULL_FACE)
+
                 self.ctx.disable(moderngl.BLEND)
             
             if self.showborder:
@@ -841,7 +951,13 @@ class VoxelWorld:
         if self.is_client: return
         
         pos = self.p.getpos()
-        data = {'pos': pos.tolist(), 'yaw': float(self.p.cam.yaw), 'pitch': float(self.p.cam.pitch)}
+        data = {
+            'pos': pos.tolist(), 
+            'yaw': float(self.p.cam.yaw), 
+            'pitch': float(self.p.cam.pitch),
+            'gm': int(self.p.gmode)
+        }
+
         with open(os.path.join(config.root, self.wname, "player.json"), 'w') as f:
             json.dump(data, f)
         

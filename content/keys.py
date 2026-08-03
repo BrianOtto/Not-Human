@@ -132,6 +132,10 @@ def onEvent(w, events):
                     modes = ["First", "Third Back", "Third Front", "Orbital"]
                     w.ui.chatmsg(f"Camera: {modes[w.p.cmode]}", color=(200, 200, 255))
 
+            elif i.key == K_F6 and not w.oninv:
+                gm = w.p.togglegmode()
+                w.ui.chatmsg(f"Gamemode: {'Creative' if gm else 'Survival'}", color=(200, 255, 200))
+
             elif i.key == K_c and w.p.freecam and not w.oninv:
                 w.p.togglefcctrl()
                 w.ui.chatmsg(f"Freecam control: {'camera' if w.p.fcmove else 'player'}", color=(200, 200, 255))
@@ -279,40 +283,17 @@ def onEvent(w, events):
 
             elif pygame.event.get_grab():
                 if i.button == 1:
-                    tb, face = w.p.targetblock(5.0)
-                    
-                    
-                    if tb:
-                        
-                        bx, by, bz = tb
-                        bt = w.chunker.getblock(bx, by, bz)
-                        w.p.is_breaking = True
-                        w.p.break_time  = 0.0
+                    w.p.is_breaking = True
+                    w.p.break_time  = 0.0
 
-                        # fuckass redstonbe
-                        from world.blocks import REDSTONE_WIRE
-                        if bt == REDSTONE_WIRE:
-                            w.render_extruded.rm_block(bx, by, bz)
-                            
-                        w.chunker.breakblock(bx, by, bz)
-                        
-                        
-                        if bt and bt != 0:
-                            w.particles.spawn(bx, by, bz, bt)
-                            
-                            
+                    
+                    if w.p.gmode:
+                        tb, face = w.p.targetblock(5.0)
+                        if tb: w.breakblock(*tb)
 
-                        if w.netclient and w.netclient.isconn():
-                            w.netclient.sendchange(bx, by, bz, 0)
-                            
-                            
-                    else:
-                        w.p.is_breaking = True
-                        w.p.break_time  = 0.0
-                        
-                        
-                        
-                        
+
+
+
 
                 elif i.button == 3:
                     tb, face = w.p.targetblock(5.0)

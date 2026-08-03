@@ -66,9 +66,9 @@ class CommandManager:
             usage="/time [query] | /time set <day|noon|night|midnight|ticks> | /time set <deg>deg | /time add <ticks> | /time add <deg>deg",
             desc="Change sun angle (sun_pos)")
 
-        #r.register("gamemode", self.cmdgamemode, aliases=("gm",),
-        #    usage="/gamemode <survival|creative|adventure>",
-        #    desc="Set gamemode")
+        r.register("gamemode", self.cmdgamemode, aliases=("gm",),
+            usage="/gamemode <survival|creative|0|1>",
+            desc="Set gamemode")
 
         r.register("server", self.cmdsrv,
             usage="/server start [port] | /server connect <host:port> [name] | /server stop | /server status",
@@ -137,7 +137,8 @@ class CommandManager:
         args  = toks[1:]
         #print(cname, args)
 
-        loconly = {"server"}
+        
+        loconly = {"server", "gamemode", "gm"}
         nc = world.netclient
         if nc and nc.isconn() and cname not in loconly:
             nc.sendchat(raw)
@@ -371,15 +372,15 @@ class CommandManager:
         if fail: ctx.warn(f"{fail} target(s) could not receive items.")
         
     
-    """
-        def cmdgamemode(self, ctx, args):
-            modes = {"s": 0, "survival": 0, "c": 1, "creative": 1, "a": 2, "adventure": 2}
-            if not args: raise CommandError("Usage: /gamemode <survival|creative|adventure>")
-            m = modes.get(args[0].lower())
-            if m is None: raise CommandError(f"Unknown gamemode: {args[0]}")
-            ctx.world.p.gamemode = m
-            ctx.ok(f"Gamemode set to {args[0]}")
-    """
+    def cmdgamemode(self, ctx, args):
+        modes = {"s": 0, "survival": 0, "0": 0, "c": 1, "creative": 1, "1": 1}
+        if not args: raise CommandError("Usage: /gamemode <survival|creative|0|1>")
+
+        m = modes.get(args[0].lower())
+        if m is None: raise CommandError(f"Unknown gamemode: {args[0]}")
+
+        ctx.world.p.setgmode(m)
+        ctx.ok(f"Gamemode set to {'creative' if m else 'survival'}")
 
 
     def cmdsrv(self, ctx, args):
