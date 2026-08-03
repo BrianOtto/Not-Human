@@ -6,7 +6,7 @@ import numpy as np
 from network.protocol import (
     MessageType, ReadMessage, validskin,
     mkjoin, mkposupd, mkblockchg, mkchat, mkitemdrop, mkitempick, mksvrq,
-    mkchunkreq, mkskin,
+    mkchunkreq, mkskin, mkblockdmg,
 )
 from config import SV_PORT, SV_TIMEOUT, CL_UPD_INT
 from identity import whoami, get_tokenbytes
@@ -34,6 +34,7 @@ class RemotePlayer:
         self._held  = 0
         self.aflags = 0
         self.swingt = 0.0
+        self.swseq  = -1
         self.skin   = None
 
 
@@ -53,6 +54,7 @@ class NetworkClient:
         self.drsn = ""
         self._dcfired = False
         self.rpl  = {}
+        self.bdmg = {}   # pid -> (x, y, z, stage)
         self.plock = threading.Lock()
         self.wlock = threading.Lock()
 
@@ -245,6 +247,14 @@ class NetworkClient:
 
     def sendchunkreq(self, cx, cz):
         self.wsend(mkchunkreq(cx, cz))
+
+
+    def senddmg(self, x, y, z, st):
+        self.wsend(mkblockdmg(x, y, z, st))
+
+
+    def blockdmg(self):
+        with self.plock: return dict(self.bdmg)
         
        
         
@@ -296,7 +306,9 @@ class NetworkClient:
 
                 elif mt == MessageType.PLAYER_LEFT:
                     pid = self.reader.parse_playerleft(data)
-                    with self.plock: self.rpl.pop(pid, None)
+                    with self.plock:
+                        self.rpl.pop(pid, None)
+                        self.bdmg.pop(pid, None)
                     if self.on_playerleft: self.on_playerleft(pid)
                     
                     
@@ -318,7 +330,15 @@ class NetworkClient:
                         p.tpos   = pos.copy()
                         p.tyaw   = yaw;      p.tpitch = pitch
                         p._held  = _held
-                        if afl & 1 and p.swingt <= 0: p.swingt = 0.3
+
+                        
+
+                        
+                        sq = (afl >> 4) & 3
+                        if sq != p.swseq:
+                            p.swseq = sq
+                            if afl & 1: p.swingt = 0.3
+
                         p.aflags = afl
                         p.lupd   = now
                         
@@ -327,6 +347,13 @@ class NetworkClient:
                 elif mt == MessageType.BLOCK_UPDATE:
                     x, y, z, bt = self.reader.parse_blockupdate(data)
                     if self.on_update: self.on_update(x, y, z, bt)
+
+
+                elif mt == MessageType.BLOCK_DAMAGE:
+                    pid, x, y, z, st = self.reader.parse_blockdmgupd(data)
+                    with self.plock:
+                        if st < 0: self.bdmg.pop(pid, None)
+                        else:      self.bdmg[pid] = (x, y, z, st)
 
 
                 elif mt == MessageType.ENTITY_SPAWN:

@@ -12,6 +12,7 @@ class MessageType(IntEnum):
     UPDATE_POS      = 2
     BLOCK_CHANGE    = 3
     SKIN_UPLOAD     = 4
+    BLOCK_DMG       = 5
     _SEED           = 10
     PLAYER_JOIN     = 11
     PLAYER_LEFT     = 12
@@ -34,6 +35,7 @@ class MessageType(IntEnum):
     BLOCK_BULK      = 44
     CHUNK_DATA      = 45
     CHUNK_REQ       = 46
+    BLOCK_DAMAGE    = 47
     SERVER_REQUEST  = 30
     SERVER_RESPONSE = 31
     DISCONNECT      = 32
@@ -83,6 +85,17 @@ def mkplayerskin(pid, png):
 
 def mkblockchg(x, y, z, bt):
     return struct.pack('<BiiiH', MT.BLOCK_CHANGE, x, y, z, bt)
+
+
+
+# stage 0-9, -1 = mine stop
+def mkblockdmg(x, y, z, stage):
+    return struct.pack('<Biiib', MT.BLOCK_DMG, x, y, z, stage)
+
+
+
+def mkblockdmgupd(pid, x, y, z, stage):
+    return struct.pack('<BIiiib', MT.BLOCK_DAMAGE, pid, x, y, z, stage)
 
 
 
@@ -334,6 +347,8 @@ class ReadMessage:
             MT.UPDATE_POS:    24, # 3f(12) + 2f(8) + H(2) + B(1)
             MT.BLOCK_CHANGE:  15, # iii(12) + H(2)
             MT.BLOCK_UPDATE:  15,
+            MT.BLOCK_DMG:     14, # iii(12) + b(1)
+            MT.BLOCK_DAMAGE:  18, # I(4) + iii(12) + b(1)
             MT._SEED:          5, # I(4)
             MT.PLAYER_LEFT:    5,
             MT.ITEM_SPAWN:    37, # III(12) + 3f(12) + 3f(12)
@@ -527,6 +542,17 @@ class ReadMessage:
     def parse_blockchange(self, data):
         x, y, z, bt = struct.unpack('<iiiH', data[1:])
         return x, y, z, bt
+
+
+    def parse_blockdmg(self, data):
+        x, y, z, st = struct.unpack('<iiib', data[1:])
+        return x, y, z, st
+
+
+    def parse_blockdmgupd(self, data):
+        pid            = struct.unpack('<I', data[1:5])[0]
+        x, y, z, st    = struct.unpack('<iiib', data[5:])
+        return pid, x, y, z, st
 
 
     def parse_seed(self, data):

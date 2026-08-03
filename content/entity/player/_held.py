@@ -127,7 +127,7 @@ class HeldItemRenderer:
         
         
 
-    def remoterender(self, mvp, pos, yaw, pitch, itemId, arm_angle, sun_dir=None):
+    def remoterender(self, mvp, pos, yaw, pitch, itemId, arm_angle, sun_dir=None, crouch=0.0):
         from items.registry import REGISTRY
         if not REGISTRY.exists(itemId):
             return
@@ -140,7 +140,7 @@ class HeldItemRenderer:
         prog['byaw'].value = yaw
         prog['arm_angle'].value = arm_angle
         prog['arm_z_angle'].value = 0.0
-        prog['crouch'].value = 0.0
+        prog['crouch'].value = crouch
 
         if sun_dir is not None:
             prog['sun_dir'].write(sun_dir.astype('f4').tobytes())

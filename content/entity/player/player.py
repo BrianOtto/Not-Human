@@ -52,6 +52,7 @@ class Player:
 
         self.mtgt = None
         self.mprog = 0.0
+        self.swseq = 0
 
         self.anim_time    = 0.0
         self.is_breaking  = False
@@ -85,6 +86,12 @@ class Player:
         self.orbital_distance = 6.0
         self.orb_yaw      = 0.0
         self.orb_pitch    = 30.0
+
+    def swing(self, placing=False):
+        if placing: self.is_placing  = True
+        else:       self.is_breaking = True
+        self.break_time = 0.0
+        self.swseq      = (self.swseq + 1) & 3
 
     def setgmode(self, m):
         self.gmode = m

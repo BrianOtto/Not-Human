@@ -283,10 +283,9 @@ def onEvent(w, events):
 
             elif pygame.event.get_grab():
                 if i.button == 1:
-                    w.p.is_breaking = True
-                    w.p.break_time  = 0.0
+                    w.p.swing()
 
-                    
+
                     if w.p.gmode:
                         tb, face = w.p.targetblock(5.0)
                         if tb: w.breakblock(*tb)
@@ -305,8 +304,7 @@ def onEvent(w, events):
                             bt = w.p.getsel()
                             
                             if bt is not None:
-                                w.p.is_placing = True
-                                w.p.break_time = 0.0
+                                w.p.swing(placing=True)
                                 _facig = w.bakefacing(bt, face)
                                 w.chunker.placeblock(px, py, pz, bt=bt, facing=_facig)
 

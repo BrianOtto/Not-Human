@@ -19,7 +19,7 @@ from network.protocol import (
     mkservmsg, mkpos, mkitemcollect, mkdisconnect, mksvreply, mkleft, mkseed, mkpjoin,
     mkblockupd, mkchat, mkitemspawn, mkitemdespawn, mklist,
     mkentspawn, mkentpos, mkentgone, mksvchunks, mkblockbulk, mkchunk,
-    mkplayerskin, validskin,
+    mkplayerskin, validskin, mkblockdmgupd,
 )
 from identity import bytetoken
 
@@ -549,6 +549,11 @@ class Instance:
                     self.queueblk(x, y, z, bt)
 
                     if ignite: self.ignitetnt(x, y, z)
+
+                elif mt == MessageType.BLOCK_DMG:
+                    x, y, z, st = p.reader.parse_blockdmg(data)
+                    self.broadcast(mkblockdmgupd(p.pid, x, y, z, st), exclude_pid=p.pid)
+
 
                 elif mt == MessageType.CHAT:
                     text = p.reader.parse_chatmsg(data)

@@ -401,6 +401,7 @@ class VoxelWorld:
         self._wup        = np.array([0.0, 1.0, 0.0], dtype='f4')
         self._cachedmvp  = None
         self._cachedpos  = None
+        self._dmgsent    = (None, 0)
         self._resetreq   = False
         self._nxtseed    = None
         self._pspawn     = None
@@ -514,6 +515,7 @@ class VoxelWorld:
         if tb is None:
             p.mtgt  = None
             p.mprog = 0.0
+            self.senddmg(None, 0)
             return
 
         # off block
@@ -525,13 +527,52 @@ class VoxelWorld:
 
         # retrigger swing
         if not p.is_breaking:
-            p.is_breaking = True
-            p.break_time  = 0.0
+            p.swing()
 
         if p.mprog >= 1.0:
             self.breakblock(*tb)
             p.mtgt  = None
             p.mprog = 0.0
+            self.senddmg(None, 0)
+        else:
+            self.senddmg(tb, min(int(p.mprog * 10), 9))
+
+
+    
+    def senddmg(self, tb, st):
+        if (tb, st) == self._dmgsent: return
+        self._dmgsent = (tb, st)
+
+        if not (self.netclient and self.netclient.isconn()): return
+        if tb is None: self.netclient.senddmg(0, 0, 0, -1)
+        else:          self.netclient.senddmg(tb[0], tb[1], tb[2], st)
+
+    
+    def rendercracks(self, mvpb):
+        cr = []
+        if self.p.mtgt and self.p.mprog > 0.0:
+            cr.append((self.p.mtgt, min(int(self.p.mprog * 10), 9)))
+
+        if self.netclient and self.netclient.isconn():
+            for x, y, z, st in self.netclient.blockdmg().values():
+                cr.append(((x, y, z), max(0, min(st, 9))))
+
+        if not cr: return
+
+        self.ctx.enable(moderngl.BLEND)
+        self.ctx.disable(moderngl.CULL_FACE)
+        self.texture.use(0)
+        self.crackprog['mvp'].write(mvpb)
+        self.crackprog['uvsz'].value = (UV_W, UV_H)
+
+        for i, j in cr:
+            self.crackprog['offset'].value = i
+            self.crackprog['uv0'].value    = self.crackuvs[j]
+            self.crackvao.render()
+
+        self.ctx.enable(moderngl.CULL_FACE)
+        self.ctx.disable(moderngl.BLEND)
+
 
     def onevent(self, events):
         return keys.onEvent(self, events)
@@ -585,10 +626,14 @@ class VoxelWorld:
             
             
             if self.netclient and self.netclient.isconn():
-                hid    = self.p.getsel() or 0
+                #hid    = self.p.getsel() or 0
+                # getsel() = nulls -> every nonblock
+                st     = self.getstack()
+                hid    = st.item.itemId if st else 0
                 aflags = 0
                 if self.p.is_breaking or self.p.is_placing: aflags |= 1  # swing
                 if self.p.crouching: aflags |= 2  # sneak
+                aflags |= (self.p.swseq & 3) << 4
                 
                 self.netclient.sendpos(
                     pp,
@@ -708,6 +753,7 @@ class VoxelWorld:
                 self.wireprog['offset'].value = targetb
                 self.wirevao.render(moderngl.LINES)
 
+                """
                 if self.p.mtgt == targetb and self.p.mprog > 0.0:
                     st = min(int(self.p.mprog * 10), 9)
                     self.ctx.disable(moderngl.CULL_FACE)
@@ -718,8 +764,11 @@ class VoxelWorld:
                     self.crackprog['uvsz'].value   = (UV_W, UV_H)
                     self.crackvao.render()
                     self.ctx.enable(moderngl.CULL_FACE)
+                """
 
                 self.ctx.disable(moderngl.BLEND)
+
+            self.rendercracks(mvpb)
             
             if self.showborder:
                 self.ctx.enable(moderngl.BLEND)
@@ -1336,17 +1385,19 @@ class VoxelWorld:
                 self.rskins[p.pid] = skintex(self.ctx, p.skin)
                 p.skin = None
 
+            crch = 1.0 if p.aflags & 2 else 0.0
+
             self.pmodel.render(
                 mvp, pos, p.yaw, p.pitch, self.sun_pos,
                 r_arm=ra, l_arm=la, r_leg=rl, l_leg=ll,
-                tex=self.rskins.get(p.pid)
+                crouch=crch, tex=self.rskins.get(p.pid)
             )
-                
+
             if p._held > 0 and self.render_helditem:
                 self.render_helditem.remoterender(
                     mvp, pos,
                     p.yaw, p.pitch, p._held,
-                    la, self.sun_pos
+                    la, self.sun_pos, crch
                 )
                 
             self.rendertag(mvp, pos, p.nm)
