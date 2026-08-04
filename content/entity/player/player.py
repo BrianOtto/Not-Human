@@ -6,6 +6,7 @@ import math
 from engine.camera import Camera
 from engine.physics import PhysicsEngine
 from config import BREAK_T, RAYCAST_DIST
+from world.blocks import WATER, WATER_FLOWING
 
 
 class Player:
@@ -53,6 +54,7 @@ class Player:
         self.mtgt = None
         self.mprog = 0.0
         self.swseq = 0
+        self.falld = 0.0
 
         self.anim_time    = 0.0
         self.is_breaking  = False
@@ -86,6 +88,35 @@ class Player:
         self.orbital_distance = 6.0
         self.orb_yaw      = 0.0
         self.orb_pitch    = 30.0
+
+    def inwater(self):
+        bx = int(math.floor(self.pos[0]))
+        by = int(math.floor(self.pos[1]))
+        bz = int(math.floor(self.pos[2]))
+        return self.world.chunker.getblock(bx, by, bz) in (WATER, WATER_FLOWING)
+
+    # ceil(dist - 3)
+    def onfall(self):
+        if self.fly or self.gmode or self.inwater():
+            self.falld = 0.0
+            return
+        """
+        if not self.on_ground:
+            dy = self.last_pos[1] - self.pos[1]
+            if dy > 0: self.falld += dy
+            return
+        """
+
+        dy = self.last_pos[1] - self.pos[1]
+        if dy > 0: self.falld += dy
+
+        if self.on_ground and self.falld > 0:
+            dmg = math.ceil(self.falld - 3.0)
+            if dmg > 0: self.hurt(dmg)
+            self.falld = 0.0
+
+    def hurt(self, dmg):
+        self.health = max(0, self.health - dmg)
 
     def swing(self, placing=False):
         if placing: self.is_placing  = True
@@ -247,6 +278,8 @@ class Player:
                 for i in range(3):
                     if abs(mv[i]) > 0.0001 and abs(am[i]) < 0.0001:
                         self.vel[i] = 0
+
+        self.onfall()
 
         ep   = self.pos.copy()
         coff = 0.125 if self.crouching else 0.0
@@ -476,6 +509,7 @@ class Player:
     def teleport(self, pos):
         self.pos = np.array(pos, dtype='f4')
         self.vel = np.array([0.0, 0.0, 0.0], dtype='f4')
+        self.falld = 0.0
         ep    = self.pos.copy()
         ep[1] += self.physics.eye_h
         yr    = math.radians(self.cam.yaw)

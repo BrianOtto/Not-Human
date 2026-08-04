@@ -319,9 +319,11 @@ def onEvent(w, events):
                                     from world.blockstate import BLOCK_ID_MASK, STATE_SHIFT, PLAYER_PLACED_FLAG
                                     pkd = (bt & BLOCK_ID_MASK) | (_facig << STATE_SHIFT) | PLAYER_PLACED_FLAG
                                     w.netclient.sendchange(px, py, pz, pkd)
-                                    
-                                    
-                                    
+
+
+                                if not w.p.gmode: w.p.inv.remove(w.p._slot, 1)
+
+
 
                         # TODO
                         # item-block interaction
