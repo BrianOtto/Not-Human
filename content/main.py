@@ -30,7 +30,7 @@ from config import (
     RENDER_DIST, SEED, SV_PORT, WATER_OFF,
     WATER_PLANE, SUN_SZ, HLIGHT_SCL, LINE_W,
     SCL_HUD, F_PLANE, RAYCAST_DIST,
-    HARDNESS, MINE_MULT, CRACK_SCL, HURT_T
+    HARDNESS, MINE_MULT, CRACK_SCL, HURT_T, POP_SCL, POP_YOFF
 )
 
 
@@ -43,6 +43,7 @@ from ui.hud import HUDManager
 from ui.inv import Inventory
 from engine.particle import ParticleManager
 from engine.sound import SoundManager, SND_HURT
+from engine.dmgtext import DamageText
 from entity.item.item import ItemEntityManager
 from entity.player._held import HeldItemRenderer
 import _respath
@@ -175,6 +176,7 @@ class VoxelWorld:
 
         self.particles = ParticleManager(self.ctx, texture=self.texture)
         self.sfx       = SoundManager()
+        self.dmgtext   = DamageText()
         self.itementys       = None
         self.render_helditem = None
         self.render_extruded = None
@@ -311,6 +313,7 @@ class VoxelWorld:
         from ui.bfont import Font
 
         self.text_tag = {}
+        self.text_pop = {}
         self.font_tag = Font(_respath.text_font(), scale=1)
 
         self.wname    = wname
@@ -472,6 +475,11 @@ class VoxelWorld:
     
     def onhurt(self, dmg):
         self.sfx.play(SND_HURT)
+
+        pp    = self.p.getpos()
+        pp[1] += POP_YOFF
+        self.dmgtext.hit(pp, dmg, self.p.max_health)
+
         if self.netclient and self.netclient.isconn():
             self.netclient.sendhurt(dmg)
 
@@ -619,6 +627,7 @@ class VoxelWorld:
 
             if self.groundready(): self.p.update(dt)
             self.particles.update(dt)
+            self.dmgtext.update(dt)
             self.blockentys.update(dt, self.worldctx())
             
             getanims().update(dt)
@@ -827,6 +836,8 @@ class VoxelWorld:
                 self.renderrmtplayer(mvp, dt)
 
             if self.showborder: self.renderenttags(mvp)
+
+            self.renderpopoffs(mvp)
                 
                 
             
@@ -1045,6 +1056,8 @@ class VoxelWorld:
         self.pmodel.release()
         self.particles.release()
         self.sfx.release()
+        for i in self.text_pop.values(): i.release()
+        self.text_pop.clear()
         if self.render_helditem: self.render_helditem.release()
         if self.itementys:    self.itementys.release()
         if self.render_extruded: self.render_extruded.cleanup()
@@ -1331,6 +1344,9 @@ class VoxelWorld:
 
         def on_playerhurt(rp, dmg):
             self.sfx.playat(SND_HURT, rp.tpos, self.p.pos)
+            hp    = rp.tpos.copy()
+            hp[1] += POP_YOFF
+            self.dmgtext.hit(hp, dmg)
 
         # server owned
         def on_health(hp):
@@ -1433,6 +1449,29 @@ class VoxelWorld:
         
         
 
+    def renderpopoffs(self, mvp):
+        if not self.dmgtext.pops: return
+
+        self.ctx.enable(moderngl.BLEND)
+        self.ctx.blend_func = moderngl.SRC_ALPHA, moderngl.ONE_MINUS_SRC_ALPHA
+        self.ctx.disable(moderngl.CULL_FACE)
+        self.ctx.disable(moderngl.DEPTH_TEST) 
+
+        for i in self.dmgtext.pops:
+            r, g, b = i.col
+            dr = i.xzoff()
+            self.rendertag(
+                mvp, i.pos + np.array([dr, 0.0, dr], dtype='f4'), i.txt,
+                yoff=i.yoff(), cache=self.text_pop, maxn=128,
+                tint=(r / 255.0, g / 255.0, b / 255.0, 1.0),
+                sc=POP_SCL * i.scl, box=False,
+            )
+
+        self.ctx.enable(moderngl.DEPTH_TEST)
+        self.ctx.enable(moderngl.CULL_FACE)
+        self.ctx.disable(moderngl.BLEND)
+
+
     def renderenttags(self, mvp):
         for e in self.blockentys.entities:
             if not e.alive: continue
@@ -1449,18 +1488,33 @@ class VoxelWorld:
             )
 
 
-    def tagtex(self, nm, cache, maxn=0):
+    def tagtex(self, nm, cache, maxn=0, box=True):
         if nm not in cache:
-            # debug text changes constantly, dump the lot before it piles up
+            
             if maxn and len(cache) >= maxn:
                 for i in cache.values(): i.release()
                 cache.clear()
 
             ts = self.font_tag.render(nm, False, (255, 255, 255))
             w, h = ts.get_size()
-            bg = pygame.Surface((w + 2, 11), pygame.SRCALPHA)
+
+            """
+            bg = pygame.Surface((w + 2, 11), pygame.SRCAL-PHA)
             bg.fill((0, 0, 0, 100))
             bg.blit(ts, (1, 1))
+            """
+
+            if box:
+                bg = pygame.Surface((w + 2, 11), pygame.SRCALPHA)
+                bg.fill((0, 0, 0, 100))
+                bg.blit(ts, (1, 1))
+
+            else:
+                # no plate
+                sh = self.font_tag.render(nm, False, (0, 0, 0))
+                bg = pygame.Surface((w + 1, h + 1), pygame.SRCALPHA)
+                bg.blit(sh, (1, 1))
+                bg.blit(ts, (0, 0))
 
             t = self.ctx.texture(bg.get_size(), 4, pygame.image.tostring(bg, "RGBA", False))
             t.filter = (moderngl.NEAREST, moderngl.NEAREST)
@@ -1469,10 +1523,12 @@ class VoxelWorld:
         return cache[nm]
 
 
-    def rendertag(self, mvp, ppos, nm, yoff=2.3, cache=None, maxn=0):
-        t = self.tagtex(nm, self.text_tag if cache is None else cache, maxn)
+    def rendertag(self, mvp, ppos, nm, yoff=2.3, cache=None, maxn=0,
+                  tint=(1.0, 1.0, 1.0, 1.0), sc=0.02, box=True):
+        t = self.tagtex(nm, self.text_tag if cache is None else cache, maxn, box)
         t.use(10)
-        self.tagprog['tex'].value = 10
+        self.tagprog['tex'].value  = 10
+        self.tagprog['tint'].value = tint
         self.tagprog['mvp'].write(mvp.astype('f4').tobytes())
         tp = ppos + np.array([0.0, yoff, 0.0], dtype='f4')
         self.tagprog['center_pos'].write(tp.tobytes())
@@ -1488,8 +1544,7 @@ class VoxelWorld:
         cu = np.cross(cr, front)
         self.tagprog['cam_r'].write(cr.astype('f4').tobytes())
         self.tagprog['cam_u'].write(cu.astype('f4').tobytes())
-        sc = 0.02
-        
+
         self.tagprog['size'].value = (t.width * sc, t.height * sc)
         self.tagvao.render(moderngl.TRIANGLES)
 

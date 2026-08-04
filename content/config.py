@@ -30,6 +30,20 @@ MINE_MULT         = 1.5          # sec p hardpoint
 CRACK_SCL         = 1.008
 HURT_T            = 0.5
 
+# popoffs
+POP_SCL           = 0.024        # scale 3.0 * 0.008
+POP_YOFF          = 2.25         # bbox top + 0.5
+POP_DRIFT         = 0.032        # motion x/z after 0.12 norm
+POP_LIFE          = 0.6
+
+POP_VY            = 2.4          # 0.12 p tick
+POP_G             = -12.8        # 0.04 * particleGravity 0.8, p tick
+
+POP_GROWR         = 4.6          # 1.08 p frame @60
+POP_SHRINKR       = 2.45         # 0.96 p frame @60
+POP_MAXMUL        = 3.0
+CRIT_DIV          = 2.5
+
 
 FOV               = 70.0
 N_PLANE           = 0.1
