@@ -19,7 +19,7 @@ from network.protocol import (
     mkservmsg, mkpos, mkitemcollect, mkdisconnect, mksvreply, mkleft, mkseed, mkpjoin,
     mkblockupd, mkchat, mkitemspawn, mkitemdespawn, mklist,
     mkentspawn, mkentpos, mkentgone, mksvchunks, mkblockbulk, mkchunk,
-    mkplayerskin, validskin, mkblockdmgupd,
+    mkplayerskin, validskin, mkblockdmgupd, mkplayerhurt, mkhealth,
 )
 from identity import bytetoken
 
@@ -36,6 +36,8 @@ BEDROCK_ID     = 4
 ENT_GRAV    = -32.0
 ENT_TERMVEL = -78.4
 ENT_IVELY   =  4.0
+
+MAX_HEALTH = 20
 
 # item drops
 ITEM_LIFE = 300.0
@@ -67,13 +69,14 @@ class PlayerState:
         self.pitch  = 0.0
         self._held  = 0
         self.aflags = 0
+        self.health = MAX_HEALTH
         self.skin   = b''
         self.lupd   = time.time()
         self.reader = ReadMessage(sock)
         self.conn   = True
         self.btimes = []
         self.ltele  = 0.0
-        self.sentck = set()   # chunks this one already has
+        self.sentck = set()   # chunks done
         self.sq     = deque()   # normal traffic
         self.cq     = deque()   # chunk payloads, yield to sq
         self.slock  = threading.Lock()
@@ -237,6 +240,20 @@ class Instance:
     def giveitem(self, p, itemId, count):
         self.send(p, mkitemcollect(itemId, count))
         return True
+
+
+    def hurtpl(self, p, dmg):
+        dmg = max(0, min(MAX_HEALTH, int(dmg)))
+        if dmg <= 0 or p.health <= 0: return
+
+        p.health = max(0, p.health - dmg)
+        self.broadcast(mkplayerhurt(p.pid, dmg), exclude_pid=p.pid)
+        self.send(p, mkhealth(p.health))
+
+
+    def sethealth(self, p, hp):
+        p.health = max(0, min(MAX_HEALTH, int(hp)))
+        self.send(p, mkhealth(p.health))
 
 
 
@@ -486,6 +503,9 @@ class Instance:
                 ))
                 print(f"Restored {p.nm} to ({pos[0]:.1f}, {pos[1]:.1f}, {pos[2]:.1f})")
 
+            if pd and 'health' in pd: p.health = max(0, min(MAX_HEALTH, int(pd['health'])))
+            self.send(p, mkhealth(p.health))
+
             print(f"{p.nm} (id={p.pid}) joined from {p.addr[0]}:{p.addr[1]}")
             # print(p.token[:8])
             self.msgloop(p)
@@ -529,14 +549,13 @@ class Instance:
 
                 elif mt == MessageType.CHUNK_REQ:
                     cx, cz = p.reader.parse_chunkreq(data)
-                    # he unloaded it, forget it and the next pass resends
                     p.sentck.discard((cx, cz))
 
 
                 elif mt == MessageType.BLOCK_CHANGE:
                     x, y, z, bt = p.reader.parse_blockchange(data)
                     if not self.validblock(p, x, y, z, bt):
-                        # resend the chunk, his predicted edit gets overwritten
+                        # resend the chunk, predicted->overwritten
                         p.sentck.discard((x // CHUNK_SZ, z // CHUNK_SZ))
                         continue
 
@@ -553,6 +572,10 @@ class Instance:
                 elif mt == MessageType.BLOCK_DMG:
                     x, y, z, st = p.reader.parse_blockdmg(data)
                     self.broadcast(mkblockdmgupd(p.pid, x, y, z, st), exclude_pid=p.pid)
+
+
+                elif mt == MessageType.PLAYER_DMG:
+                    self.hurtpl(p, p.reader.parse_playerdmg(data))
 
 
                 elif mt == MessageType.CHAT:
@@ -827,6 +850,7 @@ class Instance:
                 'nm': p.nm, 'token': p.token,
                 'pos': p.pos.tolist(),
                 'yaw': float(p.yaw), 'pitch': float(p.pitch),
+                'health': int(p.health),
             }
             with open(self.plfile(p.token), 'w') as f: json.dump(data, f)
         except Exception:
@@ -963,7 +987,7 @@ class Instance:
                     if dx * dx + dz * dz > r2: continue
                     want.add((pcx + dx, pcz + dz))
 
-            # forget the ones he walked away from, hell get them again later
+            
             p.sentck &= want
 
             # nearest first so the world fills in around him
@@ -987,7 +1011,7 @@ class Instance:
             chgs = [(x, y, z, bt) for (x, y, z), bt in self.pendblk.items()]
             self.pendblk.clear()
 
-        # chunked so one blast cant make a giant packet
+        # chunked broadcast
         for i in range(0, len(chgs), 512):
             self.broadcast(mkblockbulk(chgs[i:i+512]))
 

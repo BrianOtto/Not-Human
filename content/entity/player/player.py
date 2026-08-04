@@ -5,7 +5,7 @@ import math
 
 from engine.camera import Camera
 from engine.physics import PhysicsEngine
-from config import BREAK_T, RAYCAST_DIST
+from config import BREAK_T, RAYCAST_DIST, HURT_T
 from world.blocks import WATER, WATER_FLOWING
 
 
@@ -55,6 +55,7 @@ class Player:
         self.mprog = 0.0
         self.swseq = 0
         self.falld = 0.0
+        self.hurtt = 0.0
 
         self.anim_time    = 0.0
         self.is_breaking  = False
@@ -116,7 +117,10 @@ class Player:
             self.falld = 0.0
 
     def hurt(self, dmg):
+        if dmg <= 0: return
         self.health = max(0, self.health - dmg)
+        self.hurtt  = HURT_T
+        self.world.onhurt(dmg)
 
     def swing(self, placing=False):
         if placing: self.is_placing  = True
@@ -386,6 +390,7 @@ class Player:
             self.fcam.pos += self.pos - self.last_pos
 
         self.anim_time += dt
+        if self.hurtt > 0: self.hurtt -= dt
 
         self._smthcrouch = 1.0 if self.crouching else 0.0
 

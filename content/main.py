@@ -30,7 +30,7 @@ from config import (
     RENDER_DIST, SEED, SV_PORT, WATER_OFF,
     WATER_PLANE, SUN_SZ, HLIGHT_SCL, LINE_W,
     SCL_HUD, F_PLANE, RAYCAST_DIST,
-    HARDNESS, MINE_MULT, CRACK_SCL
+    HARDNESS, MINE_MULT, CRACK_SCL, HURT_T
 )
 
 
@@ -42,6 +42,7 @@ from skin import skintex
 from ui.hud import HUDManager
 from ui.inv import Inventory
 from engine.particle import ParticleManager
+from engine.sound import SoundManager, SND_HURT
 from entity.item.item import ItemEntityManager
 from entity.player._held import HeldItemRenderer
 import _respath
@@ -173,6 +174,7 @@ class VoxelWorld:
         
 
         self.particles = ParticleManager(self.ctx, texture=self.texture)
+        self.sfx       = SoundManager()
         self.itementys       = None
         self.render_helditem = None
         self.render_extruded = None
@@ -378,6 +380,7 @@ class VoxelWorld:
                 if 'yaw' in pd:      self.p.cam.yaw = float(pd['yaw'])
                 if 'pitch' in pd:    self.p.cam.pitch = float(pd['pitch'])
                 if 'gm' in pd:       self.p.setgmode(int(pd['gm']))
+                if 'health' in pd:   self.p.health = int(pd['health'])
                 
             except Exception:
                 pass
@@ -466,6 +469,12 @@ class VoxelWorld:
     def issolid(self, x, y, z):
         return self.chunker.issolid(x, y, z)
 
+    
+    def onhurt(self, dmg):
+        self.sfx.play(SND_HURT)
+        if self.netclient and self.netclient.isconn():
+            self.netclient.sendhurt(dmg)
+
     def breakblock(self, bx, by, bz):
         bt = self.chunker.getblock(bx, by, bz)
 
@@ -495,7 +504,7 @@ class VoxelWorld:
         pos = np.array([bx + 0.5, by + 0.5, bz + 0.5], dtype='f4')
 
         if self.netclient and self.netclient.isconn():
-            # server owns the entity, it pops it for everyone
+            # server owned
             self.netclient.senddrop(bt, 1, pos, np.array([0.0, 2.0, 0.0], dtype='f4'))
         else:
             self.itementys.spawn(bt, 1, pos)
@@ -844,7 +853,8 @@ class VoxelWorld:
                 l_arm_z=l_arm_z,
                 headyawoff=phead_yaw,
                 crouch=self.p._smthcrouch,
-                _hidehead=(self.p.cmode == 0 and not self.p.freecam)
+                _hidehead=(self.p.cmode == 0 and not self.p.freecam),
+                hurt=max(0.0, self.p.hurtt / HURT_T)
             )
             
             
@@ -1005,7 +1015,8 @@ class VoxelWorld:
             'pos': pos.tolist(), 
             'yaw': float(self.p.cam.yaw), 
             'pitch': float(self.p.cam.pitch),
-            'gm': int(self.p.gmode)
+            'gm': int(self.p.gmode),
+            'health': int(self.p.health)
         }
 
         with open(os.path.join(config.root, self.wname, "player.json"), 'w') as f:
@@ -1033,6 +1044,7 @@ class VoxelWorld:
         self.dropskins()
         self.pmodel.release()
         self.particles.release()
+        self.sfx.release()
         if self.render_helditem: self.render_helditem.release()
         if self.itementys:    self.itementys.release()
         if self.render_extruded: self.render_extruded.cleanup()
@@ -1317,6 +1329,13 @@ class VoxelWorld:
             self.ui.chatmsg(f"disconnected: {reason}", color=(255, 150, 150))
             self._dcreq = reason or "connection lost"
 
+        def on_playerhurt(rp, dmg):
+            self.sfx.playat(SND_HURT, rp.tpos, self.p.pos)
+
+        # server owned
+        def on_health(hp):
+            self.p.health = hp
+
         self.netclient.on_seed        = on_seed
         self.netclient.on_update      = on_update
         self.netclient.on_entspawn    = on_entspawn
@@ -1332,6 +1351,8 @@ class VoxelWorld:
         self.netclient.on_itemdespawn = on_itemdespawn
         self.netclient.on_itemcollect = on_itemcollect
         self.netclient.on_disconnect  = on_disconnect
+        self.netclient.on_playerhurt  = on_playerhurt
+        self.netclient.on_health      = on_health
         
         
 
@@ -1391,7 +1412,8 @@ class VoxelWorld:
             self.pmodel.render(
                 mvp, pos, p.yaw, p.pitch, self.sun_pos,
                 r_arm=ra, l_arm=la, r_leg=rl, l_leg=ll,
-                crouch=crch, tex=self.rskins.get(p.pid)
+                crouch=crch, tex=self.rskins.get(p.pid),
+                hurt=max(0.0, p.hurtt / HURT_T)
             )
 
             if p._held > 0 and self.render_helditem:

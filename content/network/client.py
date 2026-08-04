@@ -6,9 +6,9 @@ import numpy as np
 from network.protocol import (
     MessageType, ReadMessage, validskin,
     mkjoin, mkposupd, mkblockchg, mkchat, mkitemdrop, mkitempick, mksvrq,
-    mkchunkreq, mkskin, mkblockdmg,
+    mkchunkreq, mkskin, mkblockdmg, mkplayerdmg,
 )
-from config import SV_PORT, SV_TIMEOUT, CL_UPD_INT
+from config import SV_PORT, SV_TIMEOUT, CL_UPD_INT, HURT_T
 from identity import whoami, get_tokenbytes
 import _respath
 
@@ -35,6 +35,7 @@ class RemotePlayer:
         self.aflags = 0
         self.swingt = 0.0
         self.swseq  = -1
+        self.hurtt  = 0.0
         self.skin   = None
 
 
@@ -76,6 +77,8 @@ class NetworkClient:
         #self.on_itempick    = None
         self.on_teleport    = None
         self.on_disconnect  = None
+        self.on_playerhurt  = None
+        self.on_health      = None
         
 
         self.lsend      = 0
@@ -253,6 +256,10 @@ class NetworkClient:
         self.wsend(mkblockdmg(x, y, z, st))
 
 
+    def sendhurt(self, dmg):
+        self.wsend(mkplayerdmg(dmg))
+
+
     def blockdmg(self):
         with self.plock: return dict(self.bdmg)
         
@@ -347,6 +354,19 @@ class NetworkClient:
                 elif mt == MessageType.BLOCK_UPDATE:
                     x, y, z, bt = self.reader.parse_blockupdate(data)
                     if self.on_update: self.on_update(x, y, z, bt)
+
+
+                elif mt == MessageType.PLAYER_HURT:
+                    pid, dmg = self.reader.parse_playerhurt(data)
+                    with self.plock:
+                        p = self.rpl.get(pid)
+                        if p: p.hurtt = HURT_T
+                    if p and self.on_playerhurt: self.on_playerhurt(p, dmg)
+
+
+                elif mt == MessageType.PLAYER_HEALTH:
+                    hp = self.reader.parse_health(data)
+                    if self.on_health: self.on_health(hp)
 
 
                 elif mt == MessageType.BLOCK_DAMAGE:
@@ -483,6 +503,7 @@ class NetworkClient:
                     stale.append(i); continue
 
                 if j.swingt > 0: j.swingt -= dt
+                if j.hurtt  > 0: j.hurtt  -= dt
 
                 idur   = j.stime - j.pstime
                 idelay = 0.05

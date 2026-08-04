@@ -57,3 +57,8 @@ def text_inv():      return os.path.join(_getactive(), "textures", "ui", "invent
 
 def dir_model(): return os.path.join(_getactive(), "models", "blocks")
 def dir_anims(): return os.path.join(_getactive(), "animations")
+
+
+# sounds
+def dir_sounds():
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds")

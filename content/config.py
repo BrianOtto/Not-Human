@@ -12,7 +12,7 @@ TERRAIN_SCL_X     = 0.010
 TERRAIN_SCL_Z     = 0.010
 TERRAIN_SCL_Y     = 0.015
 
-WIN_W             = 1280         # TODO
+WIN_W             = 1280         # f11 fullscreen
 WIN_H             = 720
 
 SUN_SZ            = 80.0
@@ -27,7 +27,8 @@ RAYCAST_DIST      = 5.0
 
 HARDNESS          = 1.0
 MINE_MULT         = 1.5          # sec p hardpoint
-CRACK_SCL         = 1.008 
+CRACK_SCL         = 1.008
+HURT_T            = 0.5
 
 
 FOV               = 70.0

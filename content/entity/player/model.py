@@ -193,7 +193,7 @@ class PlayerModel:
     def render(
         self, mvp, pos, yaw, pitch=0.0, sun_pos=None,
         r_arm=0.0, l_arm=0.0, r_leg=0.0, l_leg=0.0, r_arm_z=0.0, l_arm_z=0.0,
-        headyawoff=0.0, crouch=0.0, _hidehead=False, tex=None
+        headyawoff=0.0, crouch=0.0, _hidehead=False, tex=None, hurt=0.0
     ):
         (tex or self.skin_tex).use(0)
         self.prog['mvp'].write(mvp.astype('f4').tobytes())
@@ -209,6 +209,7 @@ class PlayerModel:
         self.prog['headyawoff'].value        = headyawoff
         self.prog['crouch'].value            = crouch
         self.prog['_hidehead'].value = 1.0 if _hidehead else 0.0
+        self.prog['hurt'].value      = hurt
         
         
         if sun_pos is not None:
