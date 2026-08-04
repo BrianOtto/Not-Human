@@ -19,7 +19,7 @@ from network.protocol import (
     mkservmsg, mkpos, mkitemcollect, mkdisconnect, mksvreply, mkleft, mkseed, mkpjoin,
     mkblockupd, mkchat, mkitemspawn, mkitemdespawn, mklist,
     mkentspawn, mkentpos, mkentgone, mksvchunks, mkblockbulk, mkchunk,
-    mkplayerskin, validskin, mkblockdmgupd, mkplayerhurt, mkhealth,
+    mkplayerskin, validskin, mkblockdmgupd, mkplayerhurt, mkhealth, mkhunger,
 )
 from identity import bytetoken
 
@@ -38,6 +38,7 @@ ENT_TERMVEL = -78.4
 ENT_IVELY   =  4.0
 
 MAX_HEALTH = 20
+MAX_HUNGER = 20
 
 # item drops
 ITEM_LIFE = 300.0
@@ -70,6 +71,7 @@ class PlayerState:
         self._held  = 0
         self.aflags = 0
         self.health = MAX_HEALTH
+        self.hunger = MAX_HUNGER
         self.skin   = b''
         self.lupd   = time.time()
         self.reader = ReadMessage(sock)
@@ -161,6 +163,8 @@ class Instance:
                         get_pos   = lambda p=p: p.pos.copy(),
                         teleport  = lambda pos, p=p: srv.teleport(p, pos),
                         give_item = lambda iid, cnt, p=p: srv.giveitem(p, iid, cnt),
+                        set_hp     = lambda hp, p=p: srv.sethealth(p, hp),
+                        set_hunger = lambda hg, p=p: srv.sethunger(p, hg),
                         source=p,
                     ))
                     
@@ -244,7 +248,7 @@ class Instance:
 
     def hurtpl(self, p, dmg):
         dmg = max(0, min(MAX_HEALTH, int(dmg)))
-        if dmg <= 0 or p.health <= 0: return
+        if dmg <= 0: return #or p.health <= 0: return
 
         p.health = max(0, p.health - dmg)
         self.broadcast(mkplayerhurt(p.pid, dmg), exclude_pid=p.pid)
@@ -254,6 +258,13 @@ class Instance:
     def sethealth(self, p, hp):
         p.health = max(0, min(MAX_HEALTH, int(hp)))
         self.send(p, mkhealth(p.health))
+        return True
+
+
+    def sethunger(self, p, hg):
+        p.hunger = max(0, min(MAX_HUNGER, int(hg)))
+        self.send(p, mkhunger(p.hunger))
+        return True
 
 
 
@@ -504,7 +515,9 @@ class Instance:
                 print(f"Restored {p.nm} to ({pos[0]:.1f}, {pos[1]:.1f}, {pos[2]:.1f})")
 
             if pd and 'health' in pd: p.health = max(0, min(MAX_HEALTH, int(pd['health'])))
+            if pd and 'hunger' in pd: p.hunger = max(0, min(MAX_HUNGER, int(pd['hunger'])))
             self.send(p, mkhealth(p.health))
+            self.send(p, mkhunger(p.hunger))
 
             print(f"{p.nm} (id={p.pid}) joined from {p.addr[0]}:{p.addr[1]}")
             # print(p.token[:8])
@@ -851,6 +864,7 @@ class Instance:
                 'pos': p.pos.tolist(),
                 'yaw': float(p.yaw), 'pitch': float(p.pitch),
                 'health': int(p.health),
+                'hunger': int(p.hunger),
             }
             with open(self.plfile(p.token), 'w') as f: json.dump(data, f)
         except Exception:

@@ -384,6 +384,7 @@ class VoxelWorld:
                 if 'pitch' in pd:    self.p.cam.pitch = float(pd['pitch'])
                 if 'gm' in pd:       self.p.setgmode(int(pd['gm']))
                 if 'health' in pd:   self.p.health = int(pd['health'])
+                if 'hunger' in pd:   self.p.hunger = int(pd['hunger'])
                 
             except Exception:
                 pass
@@ -1027,7 +1028,8 @@ class VoxelWorld:
             'yaw': float(self.p.cam.yaw), 
             'pitch': float(self.p.cam.pitch),
             'gm': int(self.p.gmode),
-            'health': int(self.p.health)
+            'health': int(self.p.health),
+            'hunger': int(self.p.hunger)
         }
 
         with open(os.path.join(config.root, self.wname, "player.json"), 'w') as f:
@@ -1352,6 +1354,9 @@ class VoxelWorld:
         def on_health(hp):
             self.p.health = hp
 
+        def on_hunger(hg):
+            self.p.hunger = hg
+
         self.netclient.on_seed        = on_seed
         self.netclient.on_update      = on_update
         self.netclient.on_entspawn    = on_entspawn
@@ -1369,6 +1374,7 @@ class VoxelWorld:
         self.netclient.on_disconnect  = on_disconnect
         self.netclient.on_playerhurt  = on_playerhurt
         self.netclient.on_health      = on_health
+        self.netclient.on_hunger      = on_hunger
         
         
 
@@ -1523,8 +1529,10 @@ class VoxelWorld:
         return cache[nm]
 
 
-    def rendertag(self, mvp, ppos, nm, yoff=2.3, cache=None, maxn=0,
-                  tint=(1.0, 1.0, 1.0, 1.0), sc=0.02, box=True):
+    def rendertag(
+            self, mvp, ppos, nm, yoff=2.3, cache=None, maxn=0,
+            tint=(1.0, 1.0, 1.0, 1.0), sc=0.02, box=True
+        ):
         t = self.tagtex(nm, self.text_tag if cache is None else cache, maxn, box)
         t.use(10)
         self.tagprog['tex'].value  = 10

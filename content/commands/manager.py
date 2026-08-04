@@ -70,6 +70,14 @@ class CommandManager:
             usage="/gamemode <survival|creative|0|1>",
             desc="Set gamemode")
 
+        r.register("health", self.cmdhealth, aliases=("hp",),
+            usage="/health <amount> | /health <targets> <amount>",
+            desc="Set health")
+
+        r.register("hunger", self.cmdhunger, aliases=("food",),
+            usage="/hunger <amount> | /hunger <targets> <amount>",
+            desc="Set hunger")
+
         r.register("server", self.cmdsrv,
             usage="/server start [port] | /server connect <host:port> [name] | /server stop | /server status",
             desc="Manage mulltiplayer server")
@@ -94,6 +102,8 @@ class CommandManager:
             get_pos   = lambda w=world: w.p.getpos(),
             teleport  = lambda pos, w=world: w.p.teleport(pos),
             give_item = lambda iid, cnt, w=world: w.p.inv.add(iid, cnt),
+            set_hp     = lambda hp, w=world: w.p.sethealth(hp),
+            set_hunger = lambda hg, w=world: w.p.sethunger(hg),
             source    = world.p))
             
             
@@ -167,6 +177,10 @@ class CommandManager:
             first = args[0].lower()
             if first.isdigit() or bool(REGISTRY.search(first)):
                 return ["@self"] + args
+
+        if cmd in ("health", "hp", "hunger", "food"):
+            if len(args) == 1: return ["@self"] + args
+
         return args
         
         
@@ -372,6 +386,35 @@ class CommandManager:
         if fail: ctx.warn(f"{fail} target(s) could not receive items.")
         
     
+    def setstat(self, ctx, args, nm, maxv, getfn):
+        if len(args) < 2:
+            raise CommandError(f"Usage: /{nm} <amount> | /{nm} <targets> <amount>")
+
+        targets = resolve_target(args[0], ctx.executor, ctx.entities)
+
+        try:    val = int(args[1])
+        except: raise CommandError(f"{nm.capitalize()} must be an integer")
+
+        if not 0 <= val <= maxv:
+            raise CommandError(f"{nm.capitalize()} must be 0-{maxv}")
+
+        ok, fail = 0, 0
+        for i in targets:
+            fn = getfn(i)
+            if fn and fn(val): ok += 1
+            else: fail += 1
+
+        if ok:   ctx.ok  (f"Set {nm} to {val} for {ok} player(s)")
+        if fail: ctx.warn(f"{fail} target(s) have no {nm}.")
+
+
+    def cmdhealth(self, ctx, args):
+        self.setstat(ctx, args, "health", 20, lambda e: e.set_hp)
+
+    def cmdhunger(self, ctx, args):
+        self.setstat(ctx, args, "hunger", 20, lambda e: e.set_hunger)
+
+
     def cmdgamemode(self, ctx, args):
         modes = {"s": 0, "survival": 0, "0": 0, "c": 1, "creative": 1, "1": 1}
         if not args: raise CommandError("Usage: /gamemode <survival|creative|0|1>")

@@ -79,6 +79,7 @@ class NetworkClient:
         self.on_disconnect  = None
         self.on_playerhurt  = None
         self.on_health      = None
+        self.on_hunger      = None
         
 
         self.lsend      = 0
@@ -367,6 +368,11 @@ class NetworkClient:
                 elif mt == MessageType.PLAYER_HEALTH:
                     hp = self.reader.parse_health(data)
                     if self.on_health: self.on_health(hp)
+
+
+                elif mt == MessageType.PLAYER_HUNGER:
+                    hg = self.reader.parse_hunger(data)
+                    if self.on_hunger: self.on_hunger(hg)
 
 
                 elif mt == MessageType.BLOCK_DAMAGE:

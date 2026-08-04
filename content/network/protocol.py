@@ -39,6 +39,7 @@ class MessageType(IntEnum):
     BLOCK_DAMAGE    = 47
     PLAYER_HURT     = 48
     PLAYER_HEALTH   = 49
+    PLAYER_HUNGER   = 50
     SERVER_REQUEST  = 30
     SERVER_RESPONSE = 31
     DISCONNECT      = 32
@@ -115,6 +116,11 @@ def mkplayerhurt(pid, dmg):
 
 def mkhealth(hp):
     return struct.pack('<BB', MT.PLAYER_HEALTH, min(255, max(0, hp)))
+
+
+
+def mkhunger(hg):
+    return struct.pack('<BB', MT.PLAYER_HUNGER, min(255, max(0, hg)))
 
 
 
@@ -371,6 +377,7 @@ class ReadMessage:
             MT.PLAYER_DMG:     2, # B(1)
             MT.PLAYER_HURT:    6, # I(4) + B(1)
             MT.PLAYER_HEALTH:  2, # B(1)
+            MT.PLAYER_HUNGER:  2,
             MT._SEED:          5, # I(4)
             MT.PLAYER_LEFT:    5,
             MT.ITEM_SPAWN:    37, # III(12) + 3f(12) + 3f(12)
@@ -581,6 +588,10 @@ class ReadMessage:
 
 
     def parse_health(self, data):
+        return struct.unpack('<B', data[1:])[0]
+
+
+    def parse_hunger(self, data):
         return struct.unpack('<B', data[1:])[0]
 
 

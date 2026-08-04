@@ -116,6 +116,14 @@ class Player:
             if dmg > 0: self.hurt(dmg)
             self.falld = 0.0
 
+    def sethealth(self, hp):
+        self.health = max(0, min(self.max_health, int(hp)))
+        return True
+
+    def sethunger(self, hg):
+        self.hunger = max(0, min(self.max_hunger, int(hg)))
+        return True
+
     def hurt(self, dmg):
         if dmg <= 0: return
         self.health = max(0, self.health - dmg)
