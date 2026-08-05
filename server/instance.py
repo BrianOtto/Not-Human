@@ -22,6 +22,9 @@ from network.protocol import (
     mkplayerskin, validskin, mkblockdmgupd, mkplayerhurt, mkhealth, mkhunger,
 )
 from identity import bytetoken
+from entity import motion
+from entity.core import KIND_TNT, KIND_ITEM
+from entity.kinds import TNTEnt, ItemDrop
 
 
 # tnt
@@ -32,7 +35,7 @@ TNT_CFUSE_MAX  = 1.5
 TNT_BLAST_R    = 4.0
 BEDROCK_ID     = 4
 
-# entity physics, shared by every kind
+# entity
 ENT_GRAV    = -32.0
 ENT_TERMVEL = -78.4
 ENT_IVELY   =  4.0
@@ -105,12 +108,10 @@ class Instance:
         self.trate   = SV_RATE
         self.tint    = 1.0 / self.trate
         self.pint    = 0.033
-        self.aitems  = {}
         self.neid    = 1
-        self.ilock   = threading.Lock()
         self.commands = None
-        self.ents    = {}   # eid -> [kind, x, y, z, vy, fuse, onground]
-        self.tntlock = threading.Lock()
+        self.ents    = {}   # eid -> Entity
+        self.entlock = threading.Lock()
         self._eid    = 0
         self.eidlock = threading.Lock()
         self._lastkeys = None
@@ -710,14 +711,37 @@ class Instance:
 
 
     def senditems(self, p):
+        """
         with self.ilock:
             for eid, it in self.aitems.items():
                 self.send(p, mkitemspawn(
-                    eid, it['iid'], it['cnt'], it['pos'], it['vel']))
+                    eid, it['iid'], it['cnt'], it['pos'], it['vel'])
+                )
+        """
+        with self.entlock:
+            snap = [
+                (e.eid, e.iid, e.cnt, e.wirepos(), e.vel.copy())
+                for e in self.ents.values() if e.kind == KIND_ITEM
+            ]
+
+        for eid, iid, cnt, pos, vel in snap:
+            self.send(p, mkitemspawn(eid, iid, cnt, pos, vel))
 
 
 
 
+    def itemdrop(self, iid, cnt, pos, vel):
+        eid = self.newid()
+        e   = ItemDrop(eid=eid, pos=pos, iid=iid, cnt=cnt)
+        e.vel = np.array(vel, dtype='f4')
+
+        e.pos[1] -= e.type.yoff
+
+        with self.entlock: self.ents[eid] = e
+        self.broadcast(mkitemspawn(eid, iid, cnt, pos, vel))
+
+
+    """
     def itemdrop(self, iid, cnt, pos, vel):
         with self.ilock:
             eid = self.newid()
@@ -728,6 +752,7 @@ class Instance:
             }
 
         self.broadcast(mkitemspawn(eid, iid, cnt, pos, vel))
+    """
 
 
 
@@ -739,6 +764,7 @@ class Instance:
 
 
 
+    """
     def itemgrav(self, it, dt):
         p, v = it['pos'], it['vel']
         bx = int(math.floor(p[0]))
@@ -801,19 +827,22 @@ class Instance:
                 snap.append((i, j['pos'].copy(), float(j['vel'][1])))
 
         for eid, pos, vy in snap: self.broadcast(mkentpos(eid, pos, vy))
-
-
+    """
 
 
     def itempickup(self, p, eid):
-        with self.ilock:
-            it = self.aitems.get(eid)
-            if it is None: return
-            # too far -> someone is reaching thru the floor
-            if np.linalg.norm(it['pos'] - p.pos) > ITEM_REACH: return
-            item = self.aitems.pop(eid)
+        with self.entlock:
+            e = self.ents.get(eid)
+            if e is None or e.kind != KIND_ITEM: return
+            #if np.linalg.norm(it['pos'] - p.pos) > ITEM_REACH: return
 
-        self.send(p, mkitemcollect(item['iid'], item['cnt']))
+
+            if np.linalg.norm(e.wirepos() - p.pos) > ITEM_REACH: return
+            e = self.ents.pop(eid)
+            #item = self.aitems.pop(eid)\
+
+        #self.send(p, mkitemcollect(item['iid'], item['cnt']))
+        self.send(p, mkitemcollect(e.iid, e.cnt))
         self.broadcast(mkitemdespawn(eid))
 
 
@@ -878,7 +907,7 @@ class Instance:
     def disconn(self, p):
         self.savepl(p)
         p.conn = False
-        p.swake.set()   # let the writer notice
+        p.swake.set()
         p.sock.close()
         with self.plock: self.players.pop(p.pid, None)
         print(f"{p.nm} (id={p.pid}) disconnected")
@@ -945,12 +974,12 @@ class Instance:
                 self.updateloads()
                 lld = t0
             self.tickents(dt)
-            self.tickitems(dt)
+            #self.tickitems(dt)
             self.flushblks()
             if t0 - lpos >= self.pint:
                 self._bcastpos()
                 self.bcastents()
-                self.bcastitems()
+                #self.bcastitems()
                 lpos = t0
             sd = time.time() - t0
             if sd < self.tint: time.sleep(self.tint - sd)
@@ -964,9 +993,10 @@ class Instance:
                 if not p.conn: continue
                 cs.add((int(p.pos[0] // CHUNK_SZ), int(p.pos[2] // CHUNK_SZ)))
 
-        with self.tntlock:
+        with self.entlock:
             for e in self.ents.values():
-                cs.add((int(e[1] // CHUNK_SZ), int(e[3] // CHUNK_SZ)))
+                if not e.type.pin: continue
+                cs.add((int(e.pos[0] // CHUNK_SZ), int(e.pos[2] // CHUNK_SZ)))
 
         self.chunker.updateloadsmulti(sorted(cs))
         self.streamchunks()
@@ -1030,33 +1060,40 @@ class Instance:
             self.broadcast(mkblockbulk(chgs[i:i+512]))
 
 
-    def spawnent(self, kind, x, y, z, life, vy=ENT_IVELY):
+    def spawnent(self, x, y, z, life, vy=ENT_IVELY):
         eid = self.newid()
-        with self.tntlock:
-            # x/z centred on the block, y = cube bottom
-            self.ents[eid] = [kind, x + 0.5, float(y), z + 0.5, vy, life, False]
-            e = self.ents[eid]
+        # x/z centered, y = cube bot
+        e   = TNTEnt(eid=eid, pos=(x + 0.5, float(y), z + 0.5), fuse=life)
+        e.vel[1] = vy
 
-        self.broadcast(mkentspawn(eid, kind, (e[1], e[2], e[3]), life))
+        # self.broadcast(mkentspawn(eid, kind, (e[1], e[2], e[3]), life))
+        with self.entlock: self.ents[eid] = e
+
+        self.broadcast(mkentspawn(eid, TNT_ID, e.wirepos(), life))
         return eid
 
 
     def ignitetnt(self, x, y, z, fuse=TNT_FUSE):
-        self.spawnent(TNT_ID, x, y, z, fuse)
+        self.spawnent(x, y, z, fuse)
 
 
     def sendents(self, p):
-        # late joiner gets whats already alive
-        with self.tntlock:
-            snap = [(i, e[0], e[1], e[2], e[3], e[5]) for i, e in self.ents.items()]
-        for eid, kind, x, y, z, life in snap:
-            self.send(p, mkentspawn(eid, kind, (x, y, z), life))
+        
+        with self.entlock:
+            snap = [
+                (e.eid, e.wirepos(), e.fuse)
+                for e in self.ents.values() if e.kind == KIND_TNT
+            ]
+
+        for eid, pos, life in snap:
+            self.send(p, mkentspawn(eid, TNT_ID, pos, life))
 
 
-    def entdeath(self, kind, x, y, z):
-        if kind == TNT_ID: self.explodetnt(x, y, z)
+    def entdeath(self, e):
+        if e.kind == KIND_TNT: self.explodetnt(e.pos[0], e.pos[1], e.pos[2])
 
 
+    """
     def entgrav(self, e, dt):
         bx = int(math.floor(e[1]))
         bz = int(math.floor(e[3]))
@@ -1085,28 +1122,40 @@ class Instance:
                 e[4] = 0.0
             else:
                 e[2] = ny
+    """
 
 
     def tickents(self, dt):
-        with self.tntlock:
+        with self.entlock:
             if not self.ents: return
             for e in self.ents.values():
-                self.entgrav(e, dt)
-                e[5] -= dt
+                e.tick(dt, self)
+                motion.tickmotion(e, self.chunker, dt)
 
-            done = [(i, e) for i, e in self.ents.items() if e[5] <= 0.0]
+            done = [(i, e) for i, e in self.ents.items() if not e.alive]
             for i, _ in done: del self.ents[i]
 
         for eid, e in done:
-            self.broadcast(mkentgone(eid))
-            self.entdeath(e[0], e[1], e[2], e[3])
+            #self.broadcast(mkentgone(eid))
+            #self.entdeath(e[0], e[1], e[2], e[3])
+
+            if e.kind == KIND_ITEM:
+                self.broadcast(mkitemdespawn(eid))
+            else:
+                self.broadcast(mkentgone(eid))
+                self.entdeath(e)
 
 
     def bcastents(self):
-        with self.tntlock:
-            snap = [(i, e[1], e[2], e[3], e[4]) for i, e in self.ents.items()]
-        for eid, x, y, z, vy in snap:
-            self.broadcast(mkentpos(eid, (x, y, z), vy))
+        
+        with self.entlock:
+            snap = []
+            for e in self.ents.values():
+                if e.still and e.snt: continue
+                e.snt = e.still
+                snap.append((e.eid, e.wirepos(), float(e.vel[1])))
+
+        for eid, pos, vy in snap: self.broadcast(mkentpos(eid, pos, vy))
 
 
     def explodetnt(self, ex, ey, ez):
@@ -1132,8 +1181,10 @@ class Instance:
             self.queueblk(bx, by, bz, 0)
 
         for bx, by, bz in chain:
-            self.spawnent(TNT_ID, bx, by, bz,
-                          random.uniform(TNT_CFUSE_MIN, TNT_CFUSE_MAX))
+            self.spawnent(
+                bx, by, bz,
+                random.uniform(TNT_CFUSE_MIN, TNT_CFUSE_MAX)
+            )
 
 
 

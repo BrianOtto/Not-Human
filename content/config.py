@@ -116,8 +116,21 @@ DROP_LIFETIME     = 300.0        # 5 mins
 DROP_BOBSPEED     = 2.5 
 DROP_BOBHEIGHT    = 0.1 
 DROP_SPIN         = 1.5
-DROP_G            = -20.0 
-DROP_F            = 0.8 
+DROP_G            = -20.0
+DROP_F            = 0.8
+
+
+
+# entities
+ENT_GRAV          = -32.0
+ENT_TERMVEL       = -78.4
+ENT_IVELY         = 4.0
+ENT_DRAG          = 0.98
+ENT_FRIC          = 0.60
+ENT_STEP          = 0.6
+ENT_EPS           = 0.001
+ENT_STILLV        = 0.02
+ENT_EASE          = 10.0
 
 
 
