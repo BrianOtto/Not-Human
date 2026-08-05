@@ -24,14 +24,15 @@ class MessageType(IntEnum):
     MODS            = 17
     CHAT            = 18
     PLAYER_SKIN     = 19
-    ITEM_SPAWN      = 20
-    ITEM_DESPAWN    = 21
     ITEM_DROP       = 22
     ITEM_PICKUP     = 23
     ITEM_COLLECT    = 24
     ENTITY_SPAWN    = 40
-    ENTITY_POS      = 41
+    ENTITY_STATE    = 41
     ENTITY_GONE     = 42
+    ENTITY_HURT     = 51
+    ENTITY_ANIM     = 52
+    ENTITY_ATTACK   = 53
     SV_CHUNKS       = 43
     BLOCK_BULK      = 44
     CHUNK_DATA      = 45
@@ -46,6 +47,13 @@ class MessageType(IntEnum):
 
 
 MT = MessageType
+
+# RANGE != kill := client must not run death fx
+GONE_DESPAWN = 0
+GONE_DEATH   = 1
+GONE_RANGE   = 2
+
+ENT_MAXBATCH = 200   # ents p ENTITY_STATE packet
 
 SKIN_MAX  = 256 * 1024
 PNG_MAGIC = b'\x89PNG\r\n\x1a\n'
@@ -158,24 +166,65 @@ def mkblockupd(x, y, z, bt):
 
 
 
-def mkentspawn(eid, kind, pos, fuse):
+def mkentspawn(eid, kind, pos, yaw=0.0, hp=0, flags=0, pay=b''):
     return struct.pack(
-        '<BIH3ff', MT.ENTITY_SPAWN, eid, kind,
-        float(pos[0]), float(pos[1]), float(pos[2]), float(fuse)
+        '<BIH3ffHBH', MT.ENTITY_SPAWN, eid, kind,
+        float(pos[0]), float(pos[1]), float(pos[2]),
+        float(yaw), hp, flags, len(pay)
+    ) + pay
+
+
+
+# [(eid, pos, yaw, vy, anim)] -> one packet
+def mkentstate(ents):
+    d = struct.pack('<BH', MT.ENTITY_STATE, len(ents))
+    for eid, pos, yaw, vy, anim in ents:
+        d += struct.pack(
+            '<I3fffB', eid,
+            float(pos[0]), float(pos[1]), float(pos[2]),
+            float(yaw), float(vy), anim
+        )
+    return d
+
+
+
+def mkentgone(eid, reason=GONE_DESPAWN):
+    return struct.pack('<BIB', MT.ENTITY_GONE, eid, reason)
+
+
+
+def mkenthurt(eid, dmg):
+    return struct.pack('<BIB', MT.ENTITY_HURT, eid, min(255, max(0, dmg)))
+
+
+
+def mkentanim(eid, anim):
+    return struct.pack('<BIB', MT.ENTITY_ANIM, eid, anim)
+
+
+
+def mkentattack(eid):
+    return struct.pack('<BI', MT.ENTITY_ATTACK, eid)
+
+
+
+
+def packtnt(fuse):
+    return struct.pack('<f', float(fuse))
+
+def unpacktnt(pay):
+    return struct.unpack('<f', pay)[0]
+
+
+def packitem(iid, cnt, vel):
+    return struct.pack(
+        '<II3f', iid, cnt,
+        float(vel[0]), float(vel[1]), float(vel[2])
     )
 
-
-
-def mkentpos(eid, pos, vy):
-    return struct.pack(
-        '<BI3ff', MT.ENTITY_POS, eid,
-        float(pos[0]), float(pos[1]), float(pos[2]), float(vy)
-    )
-
-
-
-def mkentgone(eid):
-    return struct.pack('<BI', MT.ENTITY_GONE, eid)
+def unpackitem(pay):
+    iid, cnt, vx, vy, vz = struct.unpack('<II3f', pay)
+    return iid, cnt, np.array([vx, vy, vz], dtype='f4')
 
 
 
@@ -250,6 +299,7 @@ def mkchat(msg):
 
 
 
+"""
 def mkitemspawn(eid, iid, cnt, pos, vel):
     return struct.pack(
         '<BIII3f3f', MT.ITEM_SPAWN, eid, iid, cnt,
@@ -262,6 +312,7 @@ def mkitemspawn(eid, iid, cnt, pos, vel):
 
 def mkitemdespawn(eid):
     return struct.pack('<BI', MT.ITEM_DESPAWN, eid)
+"""
 
 
 
@@ -380,17 +431,21 @@ class ReadMessage:
             MT.PLAYER_HUNGER:  2,
             MT._SEED:          5, # I(4)
             MT.PLAYER_LEFT:    5,
-            MT.ITEM_SPAWN:    37, # III(12) + 3f(12) + 3f(12)
-            MT.ITEM_DESPAWN:   5,
+            # MT.ITEM_SPAWN:    37, # III(12) + 3f(12) + 3f(-12)
+            # MT.ITEM_DESPAWN:   5,
             MT.ITEM_DROP:     33, # II(8) + 3f(12) + 3f(12)
             MT.ITEM_PICKUP:    5,
             MT.ITEM_COLLECT:   9, # II(8)
             MT.PLAYER_POS:    28, # I(4) + 3f(12) + 2f(8) + H(2) + B(1)
             MT.SERVER_REQUEST: 1,
             MT.CHUNK_REQ:      9, # ii(8)
-            MT.ENTITY_SPAWN:  23, # I(4) + H(2) + 3f(12) + f(4)
-            MT.ENTITY_POS:    21, # I(4) + 3f(12) + f(4)
-            MT.ENTITY_GONE:    5, # I(4)
+            # MT.ENTITY_SPAWN:  23, # I(4) + H(2) + 3f(12) + f(4)
+            # MT.ENTITY_POS:    21, # I(4) + 3f(12) + f(4)
+            # MT.ENTITY_GONE:    5, # I(4)
+            MT.ENTITY_GONE:    6, # I(4) + B(1)
+            MT.ENTITY_HURT:    6,
+            MT.ENTITY_ANIM:    6,
+            MT.ENTITY_ATTACK:  5, # I(4)
         }
         
         
@@ -487,6 +542,29 @@ class ReadMessage:
             if not self._pull(5): return None
             cnt = struct.unpack('<I', self.buffer[1:5])[0]
             tl  = 5 + cnt * 14
+            if not self._pull(tl): return None
+            d = self.buffer[:tl]
+            self.buffer = self.buffer[tl:]
+            return (mt, d)
+
+
+
+        # B + I + H + 3f + f + H + B + H(n) + payload
+        if mt == MT.ENTITY_SPAWN:
+            if not self._pull(28): return None
+            n = struct.unpack('<H', self.buffer[26:28])[0]
+            if not self._pull(28 + n): return None
+            d = self.buffer[:28 + n]
+            self.buffer = self.buffer[28 + n:]
+            return (mt, d)
+
+
+
+        # B + H(cnt) + (I + 3f + f + f + B)*cnt
+        if mt == MT.ENTITY_STATE:
+            if not self._pull(3): return None
+            cnt = struct.unpack('<H', self.buffer[1:3])[0]
+            tl  = 3 + cnt * 25
             if not self._pull(tl): return None
             d = self.buffer[:tl]
             self.buffer = self.buffer[tl:]
@@ -652,16 +730,37 @@ class ReadMessage:
 
 
     def parse_entspawn(self, data):
-        eid, kind, x, y, z, fuse = struct.unpack('<IH3ff', data[1:])
-        return eid, kind, np.array([x, y, z], dtype='f4'), fuse
+        eid, kind, x, y, z, yaw, hp, flags, n = struct.unpack('<IH3ffHBH', data[1:28])
+        return (
+            eid, kind, np.array([x, y, z], dtype='f4'),
+            yaw, hp, flags, data[28:28+n]
+        )
 
 
-    def parse_entpos(self, data):
-        eid, x, y, z, vy = struct.unpack('<I3ff', data[1:])
-        return eid, np.array([x, y, z], dtype='f4'), vy
+    def parse_entstate(self, data, out=[]):
+        cnt = struct.unpack('<H', data[1:3])[0]
+        out = []
+        off = 3
+        for _ in range(cnt):
+            eid, x, y, z, yaw, vy, anim = struct.unpack('<I3fffB', data[off:off+25])
+            out.append((eid, np.array([x, y, z], dtype='f4'), yaw, vy, anim))
+            off += 25
+        return out
 
 
     def parse_entgone(self, data):
+        return struct.unpack('<IB', data[1:])
+
+
+    def parse_enthurt(self, data):
+        return struct.unpack('<IB', data[1:])
+
+
+    def parse_entanim(self, data):
+        return struct.unpack('<IB', data[1:])
+
+
+    def parse_entattack(self, data):
         return struct.unpack('<I', data[1:])[0]
 
 
@@ -754,6 +853,7 @@ class ReadMessage:
 
 
 
+    """
     def parse_itemspawn(self, data):
         eid, iid, cnt, x, y, z, vx, vy, vz = struct.unpack('<III3f3f', data[1:])
         return eid, iid, cnt, np.array([x, y, z], dtype='f4'), np.array([vx, vy, vz], dtype='f4')
@@ -762,6 +862,7 @@ class ReadMessage:
 
     def parse_itemdespawn(self, data):
         return struct.unpack('<I', data[1:])[0]
+    """
 
 
 

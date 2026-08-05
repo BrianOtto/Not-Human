@@ -6,7 +6,7 @@ import numpy as np
 from network.protocol import (
     MessageType, ReadMessage, validskin,
     mkjoin, mkposupd, mkblockchg, mkchat, mkitemdrop, mkitempick, mksvrq,
-    mkchunkreq, mkskin, mkblockdmg, mkplayerdmg,
+    mkchunkreq, mkskin, mkblockdmg, mkplayerdmg, mkentattack,
 )
 from config import SV_PORT, SV_TIMEOUT, CL_UPD_INT, HURT_T
 from identity import whoami, get_tokenbytes
@@ -65,14 +65,17 @@ class NetworkClient:
         self.on_playerleft  = None
         self.on_update      = None
         self.on_entspawn    = None
-        self.on_entpos      = None
+        #self.on_entpos      = None
+        self.on_entstate    = None
         self.on_entgone     = None
+        self.on_enthurt     = None
+        self.on_entanim     = None
         self.on_svchunks    = None
         self.on_chunk       = None
         self.on_svmsg       = None
         self.on_chatmsg     = None
-        self.on_itemspawn   = None
-        self.on_itemdespawn = None
+        #self.on_itemspawn   = None
+        #self.on_itemdespawn = None
         self.on_itemcollect = None
         #self.on_itempick    = None
         self.on_teleport    = None
@@ -241,6 +244,10 @@ class NetworkClient:
         self.wsend(mkitempick(eid))
 
 
+    def sendattack(self, eid):
+        self.wsend(mkentattack(eid))
+
+
     def sendskin(self):
         fp = _respath.text_player()
         if not os.path.exists(fp): return
@@ -383,18 +390,29 @@ class NetworkClient:
 
 
                 elif mt == MessageType.ENTITY_SPAWN:
-                    eid, kind, pos, life = self.reader.parse_entspawn(data)
-                    if self.on_entspawn: self.on_entspawn(eid, kind, pos, life)
+                    eid, kind, pos, yaw, hp, flags, pay = self.reader.parse_entspawn(data)
+                    if self.on_entspawn:
+                        self.on_entspawn(eid, kind, pos, yaw, hp, flags, pay)
 
 
-                elif mt == MessageType.ENTITY_POS:
-                    eid, pos, vy = self.reader.parse_entpos(data)
-                    if self.on_entpos: self.on_entpos(eid, pos, vy)
+                elif mt == MessageType.ENTITY_STATE:
+                    ents = self.reader.parse_entstate(data)
+                    if self.on_entstate: self.on_entstate(ents)
 
 
                 elif mt == MessageType.ENTITY_GONE:
-                    eid = self.reader.parse_entgone(data)
-                    if self.on_entgone: self.on_entgone(eid)
+                    eid, reason = self.reader.parse_entgone(data)
+                    if self.on_entgone: self.on_entgone(eid, reason)
+
+
+                elif mt == MessageType.ENTITY_HURT:
+                    eid, dmg = self.reader.parse_enthurt(data)
+                    if self.on_enthurt: self.on_enthurt(eid, dmg)
+
+
+                elif mt == MessageType.ENTITY_ANIM:
+                    eid, anim = self.reader.parse_entanim(data)
+                    if self.on_entanim: self.on_entanim(eid, anim)
 
 
                 elif mt == MessageType.BLOCK_BULK:
@@ -436,14 +454,6 @@ class NetworkClient:
                 elif mt == MessageType.CHAT:
                     text = self.reader.parse_chatmsg(data)
                     if self.on_chatmsg: self.on_chatmsg(text)
-
-                elif mt == MessageType.ITEM_SPAWN:
-                    eid, iid, cnt, pos, vel = self.reader.parse_itemspawn(data)
-                    if self.on_itemspawn: self.on_itemspawn(eid, iid, cnt, pos, vel)
-
-                elif mt == MessageType.ITEM_DESPAWN:
-                    eid = self.reader.parse_itemdespawn(data)
-                    if self.on_itemdespawn: self.on_itemdespawn(eid)
 
                 elif mt == MessageType.ITEM_COLLECT:
                     iid, cnt = self.reader.parse_itemcollect(data)

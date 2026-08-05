@@ -17,9 +17,10 @@ from config import (
 from network.protocol import (
     MessageType, ReadMessage,
     mkservmsg, mkpos, mkitemcollect, mkdisconnect, mksvreply, mkleft, mkseed, mkpjoin,
-    mkblockupd, mkchat, mkitemspawn, mkitemdespawn, mklist,
-    mkentspawn, mkentpos, mkentgone, mksvchunks, mkblockbulk, mkchunk,
+    mkblockupd, mkchat, mklist,
+    mkentspawn, mkentstate, mkentgone, mkenthurt, mksvchunks, mkblockbulk, mkchunk,
     mkplayerskin, validskin, mkblockdmgupd, mkplayerhurt, mkhealth, mkhunger,
+    packtnt, packitem, GONE_DEATH, GONE_RANGE, ENT_MAXBATCH,
 )
 from identity import bytetoken
 from entity import motion
@@ -47,6 +48,7 @@ MAX_HUNGER = 20
 ITEM_LIFE = 300.0
 ITEM_FRIC = 0.8
 ITEM_REACH = 2.5
+ENT_REACH  = 4.0
 
 
 def _tntsphere(r=TNT_BLAST_R):
@@ -82,6 +84,7 @@ class PlayerState:
         self.btimes = []
         self.ltele  = 0.0
         self.sentck = set()   # chunks done
+        self.senteid = set()
         self.sq     = deque()   # normal traffic
         self.cq     = deque()   # chunk payloads, yield to sq
         self.slock  = threading.Lock()
@@ -283,6 +286,7 @@ class Instance:
     SIM_DIST      = RENDER_DIST + 1
     STREAM_DIST   = RENDER_DIST + 1
     STREAM_MAX    = 24    # chunks queued per player per pass
+    ENT_DIST      = (RENDER_DIST + 1) * CHUNK_SZ
     LOAD_INT      = 0.25
     MAX_CHAT      = 256
     BLOCK_MASKID = 0x3FF
@@ -491,7 +495,6 @@ class Instance:
             self.send(p, mkseed(self.seed))
             time.sleep(0.01)
             # mods are baked into the chunk voxels
-            self.sendents(p)
             self.send(p, mksvchunks(sorted(self.chunker.chunks.keys())))
             time.sleep(0.01)
             self.sendplrs(p)
@@ -502,7 +505,6 @@ class Instance:
                 exclude_pid=p.pid
             )
             
-            self.senditems(p)
             self.send(p, mkservmsg(f"Welcome to the server, {p.nm}!"))
 
             pd = self.loadpl(p.token)
@@ -609,6 +611,10 @@ class Instance:
                 elif mt == MessageType.ITEM_PICKUP:
                     eid = p.reader.parse_itempickup(data)
                     self.itempickup(p, eid)
+
+                elif mt == MessageType.ENTITY_ATTACK:
+                    eid = p.reader.parse_entattack(data)
+                    self.attackent(p, eid)
                     
                     
 
@@ -710,14 +716,9 @@ class Instance:
 
 
 
+    
+    """
     def senditems(self, p):
-        """
-        with self.ilock:
-            for eid, it in self.aitems.items():
-                self.send(p, mkitemspawn(
-                    eid, it['iid'], it['cnt'], it['pos'], it['vel'])
-                )
-        """
         with self.entlock:
             snap = [
                 (e.eid, e.iid, e.cnt, e.wirepos(), e.vel.copy())
@@ -726,6 +727,7 @@ class Instance:
 
         for eid, iid, cnt, pos, vel in snap:
             self.send(p, mkitemspawn(eid, iid, cnt, pos, vel))
+    """
 
 
 
@@ -738,7 +740,8 @@ class Instance:
         e.pos[1] -= e.type.yoff
 
         with self.entlock: self.ents[eid] = e
-        self.broadcast(mkitemspawn(eid, iid, cnt, pos, vel))
+        #self.broadcast(mkitemspawn(eid, iid, cnt, pos, vel))
+        return eid
 
 
     """
@@ -843,7 +846,7 @@ class Instance:
 
         #self.send(p, mkitemcollect(item['iid'], item['cnt']))
         self.send(p, mkitemcollect(e.iid, e.cnt))
-        self.broadcast(mkitemdespawn(eid))
+        self.entgone(eid)
 
 
 
@@ -978,7 +981,7 @@ class Instance:
             self.flushblks()
             if t0 - lpos >= self.pint:
                 self._bcastpos()
-                self.bcastents()
+                self.streaments()
                 #self.bcastitems()
                 lpos = t0
             sd = time.time() - t0
@@ -1068,8 +1071,6 @@ class Instance:
 
         # self.broadcast(mkentspawn(eid, kind, (e[1], e[2], e[3]), life))
         with self.entlock: self.ents[eid] = e
-
-        self.broadcast(mkentspawn(eid, TNT_ID, e.wirepos(), life))
         return eid
 
 
@@ -1077,8 +1078,9 @@ class Instance:
         self.spawnent(x, y, z, fuse)
 
 
+    """
     def sendents(self, p):
-        
+
         with self.entlock:
             snap = [
                 (e.eid, e.wirepos(), e.fuse)
@@ -1087,6 +1089,32 @@ class Instance:
 
         for eid, pos, life in snap:
             self.send(p, mkentspawn(eid, TNT_ID, pos, life))
+    """
+
+
+    def entpay(self, e):
+        if e.kind == KIND_TNT:  return packtnt(e.fuse)
+        if e.kind == KIND_ITEM: return packitem(e.iid, e.cnt, e.vel)
+        return b''
+
+
+    def entgone(self, eid, reason=0):
+        with self.plock: pl = [p for p in self.players.values() if p.conn]
+        for p in pl:
+            if eid in p.senteid:
+                p.senteid.discard(eid)
+                self.send(p, mkentgone(eid, reason))
+
+
+    def attackent(self, p, eid, dmg=1):
+        with self.entlock:
+            e = self.ents.get(eid)
+            if e is None or e.type.hp <= 0: return
+            # too far
+            if np.linalg.norm(e.wirepos() - p.pos) > ENT_REACH: return
+            e.hurt(dmg)
+
+        self.broadcast(mkenthurt(eid, dmg))
 
 
     def entdeath(self, e):
@@ -1139,15 +1167,55 @@ class Instance:
             #self.broadcast(mkentgone(eid))
             #self.entdeath(e[0], e[1], e[2], e[3])
 
-            if e.kind == KIND_ITEM:
-                self.broadcast(mkitemdespawn(eid))
-            else:
-                self.broadcast(mkentgone(eid))
-                self.entdeath(e)
+            self.entgone(eid, GONE_DEATH)
+            self.entdeath(e)
 
 
+    def streaments(self):
+        with self.entlock:
+            snap = []
+            for e in self.ents.values():
+                snap.append((
+                    e.eid, e.kind, e.wirepos(), e.yaw, e.hp,
+                    float(e.vel[1]), e.still and e.snt, self.entpay(e),
+                ))
+                e.snt = e.still
+
+        with self.plock:
+            pl = [p for p in self.players.values() if p.conn]
+
+        r2 = self.ENT_DIST * self.ENT_DIST
+
+        for p in pl:
+            batch = []
+            seen  = set()
+
+            for eid, kind, pos, yaw, hp, vy, quiet, pay in snap:
+                dx = pos[0] - p.pos[0]
+                dz = pos[2] - p.pos[2]
+                if dx * dx + dz * dz > r2: continue
+
+                seen.add(eid)
+                # spawn carries the pos, no state needed this pass
+                if eid not in p.senteid:
+                    p.senteid.add(eid)
+                    self.send(p, mkentspawn(eid, kind, pos, yaw, hp, 0, pay))
+                    continue
+
+                if quiet: continue
+                batch.append((eid, pos, yaw, vy, 0))
+
+            for eid in list(p.senteid - seen):
+                p.senteid.discard(eid)
+                self.send(p, mkentgone(eid, GONE_RANGE))
+
+            for i in range(0, len(batch), ENT_MAXBATCH):
+                self.send(p, mkentstate(batch[i:i + ENT_MAXBATCH]))
+
+
+    """
     def bcastents(self):
-        
+
         with self.entlock:
             snap = []
             for e in self.ents.values():
@@ -1156,6 +1224,7 @@ class Instance:
                 snap.append((e.eid, e.wirepos(), float(e.vel[1])))
 
         for eid, pos, vy in snap: self.broadcast(mkentpos(eid, pos, vy))
+    """
 
 
     def explodetnt(self, ex, ey, ez):

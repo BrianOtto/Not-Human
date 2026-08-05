@@ -53,6 +53,8 @@ from world.animation import getanims
 from world.renderers.extruded import ExtrudedRenderer
 from engine.gamma import Gamma
 from entity.blockenty import BlockEntityManager, itemblock
+from entity.core import KIND_TNT, KIND_ITEM
+from network.protocol import unpacktnt, unpackitem, GONE_DEATH
 import keys
 
 
@@ -1258,37 +1260,58 @@ class VoxelWorld:
             self.svchunks = set(keys)
 
 
-        def on_entspawn(eid, kind, pos, life):
+        def on_entspawn(eid, kind, pos, yaw, hp, flags, pay):
             def mk():
-                self.blockentys.activate(
-                    int(pos[0]), int(pos[1]), int(pos[2]), kind,
-                    fuse=life, _remote=True, eid=eid,
-                )
-                e = self.blockentys.byeid(eid)
-                if e is not None: e.pos = pos.copy(); e.tpos = pos.copy()
+                if kind == KIND_TNT:
+                    from world.blocks import TNT
+                    self.blockentys.activate(
+                        int(pos[0]), int(pos[1]), int(pos[2]), TNT,
+                        fuse=unpacktnt(pay), _remote=True, eid=eid,
+                    )
+                    e = self.blockentys.byeid(eid)
+                    if e is not None: e.pos = pos.copy(); e.tpos = pos.copy()
+
+
+                elif kind == KIND_ITEM:
+                    iid, cnt, vel = unpackitem(pay)
+                    it = self.itementys.spawn(iid, cnt, pos, entity_id=eid)
+                    if it:
+                        it.vel = vel
+                        it.grounded = False
+
+
 
             with self._tlock: self.ptasks.append(mk)
 
 
-        def on_entpos(eid, pos, vy):
+        def on_entstate(ents):
             def mv():
-                e = self.blockentys.byeid(eid)
-                if e is None: e = self.itementys.byeid(eid)
-                if e is not None: e.setnet(pos, vy)
+                for eid, pos, yaw, vy, anim in ents:
+                    e = self.blockentys.byeid(eid)
+                    if e is None: e = self.itementys.byeid(eid)
+                    if e is None: continue
+                    e.setnet(pos, vy)
+                    e.yaw = yaw
 
             with self._tlock: self.ptasks.append(mv)
 
 
-        def on_entgone(eid):
+        def on_entgone(eid, reason):
             def rm():
                 e = self.blockentys.byeid(eid)
-                if e is None: return
-                e.explode(self.worldctx())
-                e.alive = False
+                if e is not None:
+                    # out of range is not death, dont blow it up
+                    if reason == GONE_DEATH: e.explode(self.worldctx())
+                    e.alive = False
+                    return
+
+                it = self.itementys.byeid(eid)
+                if it is not None: it.active = False
 
             with self._tlock: self.ptasks.append(rm)
-                    
-        
+
+
+        def on_enthurt(eid, dmg): pass
         def on_playerjoin(pid, nm, pos): self.ui.chatmsg(f"'{nm}' joined", color=(200, 200, 255))
         def on_playerleft(pid):          self.ui.chatmsg(f"'{pid}'  left", color=(200, 200, 255))
         
@@ -1321,6 +1344,7 @@ class VoxelWorld:
             
         def on_chatmsg(msg): self.ui.chatmsg(msg, color=(255, 255, 255))
         
+        """
         def on_itemspawn(eid, iid, cnt, pos, vel):
             item = self.itementys.spawn(iid, cnt, pos, entity_id=eid)
             if item:
@@ -1332,7 +1356,8 @@ class VoxelWorld:
                 if i.entity_id == eid:
                     i.active = False
                     break
-        
+        """
+
         def on_itemcollect(iid, cnt):
             self.p.inv.add(iid, cnt)
             
@@ -1360,16 +1385,18 @@ class VoxelWorld:
         self.netclient.on_seed        = on_seed
         self.netclient.on_update      = on_update
         self.netclient.on_entspawn    = on_entspawn
-        self.netclient.on_entpos      = on_entpos
+        #self.netclient.on_entpos      = on_entpos
+        self.netclient.on_entstate    = on_entstate
         self.netclient.on_entgone     = on_entgone
+        self.netclient.on_enthurt     = on_enthurt
         self.netclient.on_svchunks    = on_svchunks
         self.netclient.on_chunk       = on_chunk
         self.netclient.on_playerjoin  = on_playerjoin
         self.netclient.on_playerleft  = on_playerleft
         self.netclient.on_svmsg       = on_svmsg
         self.netclient.on_chatmsg     = on_chatmsg
-        self.netclient.on_itemspawn   = on_itemspawn
-        self.netclient.on_itemdespawn = on_itemdespawn
+        #self.netclient.on_itemspawn   = on_itemspawn
+        #self.netclient.on_itemdespawn = on_itemdespawn
         self.netclient.on_itemcollect = on_itemcollect
         self.netclient.on_disconnect  = on_disconnect
         self.netclient.on_playerhurt  = on_playerhurt
