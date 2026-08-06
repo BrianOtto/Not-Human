@@ -75,7 +75,8 @@ class ItemDrop(Entity):
 
 
 
-@regentity(KIND_DUMMY, "dummy",
+@regentity(
+    KIND_DUMMY, "dummy",
     w=0.6, h=1.8, hp=20, step=ENT_STEP,
     rend=REND_MODEL, persist=True,
 )
@@ -85,7 +86,8 @@ class DummyEnt(Entity):
 
 
 
-@regentity(KIND_ZOMBIE, "zombie",
+@regentity(
+    KIND_ZOMBIE, "zombie",
     w=0.6, h=1.8, hp=20, spd=2.6, step=ENT_STEP,
     rend=REND_MODEL, persist=True, armsup=True,
 )

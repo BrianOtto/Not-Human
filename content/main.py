@@ -55,6 +55,7 @@ from engine.gamma import Gamma
 from entity.blockenty import BlockEntityManager, itemblock
 from entity.core import KIND_TNT, KIND_ITEM, KIND_DUMMY
 from entity.manager import EntityManager
+from entity.debug import EntityDebug
 from entity import motion
 from network.protocol import unpacktnt, unpackitem, GONE_DEATH
 import keys
@@ -399,6 +400,7 @@ class VoxelWorld:
         self.chunker.updateloads(cx, cz)
         
         self.showborder  = False
+        self._dbgsent    = None
         self.svchunks    = set()
         self.dbgtags     = {}
         self.showhud     = True
@@ -429,6 +431,7 @@ class VoxelWorld:
         
         self.blockentys   = BlockEntityManager(self.ctx, self.texture)
         self.entitys      = EntityManager(self.ctx, self.pmodel, self)
+        self.entdbg       = EntityDebug(self.ctx, self.wireprog)
 
         
         
@@ -480,12 +483,17 @@ class VoxelWorld:
         return self.chunker.issolid(x, y, z)
 
     
-    def onhurt(self, dmg):
+    # fx only
+    def hurtfx(self, dmg):
         self.sfx.play(SND_HURT)
 
         pp    = self.p.getpos()
         pp[1] += POP_YOFF
         self.dmgtext.hit(pp, dmg, self.p.max_health)
+
+
+    def onhurt(self, dmg):
+        self.hurtfx(dmg)
 
         if self.netclient and self.netclient.isconn():
             self.netclient.sendhurt(dmg)
@@ -670,10 +678,13 @@ class VoxelWorld:
             self.particles.update(dt)
             self.dmgtext.update(dt)
             self.blockentys.update(dt, self.worldctx())
-            self.entitys.update(
-                dt, self.chunker,
-                local=not (self.netclient and self.netclient.isconn()),
-            )
+            mp = bool(self.netclient and self.netclient.isconn())
+            self.entitys.update(dt, self.chunker, local=not mp)
+
+            # debug := request goals && nav targets
+            if mp and self.showborder != self._dbgsent:
+                self._dbgsent = self.showborder
+                self.netclient.senddbgmode(self.showborder)
 
             getanims().update(dt)
             pp = self.p.getpos()
@@ -881,7 +892,9 @@ class VoxelWorld:
             if self.netclient and self.netclient.isconn():
                 self.renderrmtplayer(mvp, dt)
 
-            if self.showborder: self.renderenttags(mvp)
+            if self.showborder:
+                self.entdbg.render(mvp, list(self.entitys.ents.values()))
+                self.renderenttags(mvp)
 
             self.renderpopoffs(mvp)
                 
@@ -1110,6 +1123,7 @@ class VoxelWorld:
         if self.entitys:
             self.entitys.saveall()
             self.entitys.release()
+        if self.entdbg: self.entdbg.release()
         if self.render_extruded: self.render_extruded.cleanup()
         if self.gamma_shader:   self.gamma_shader.release()
         self.chunker.shutdown()
@@ -1368,6 +1382,21 @@ class VoxelWorld:
             with self._tlock: self.ptasks.append(rm)
 
 
+        def on_entanim(eid, anim):
+            e = self.entitys.byeid(eid)
+            if e is not None: e.playanim(anim)
+
+
+        def on_entdbg(eid, pts, txt):
+            e = self.entitys.byeid(eid)
+            if e is not None:
+                # server owned route
+                e.path   = pts
+                e.pathi  = 0
+                e.navtgt = pts[-1] if pts else None
+                e.dbgai  = txt
+
+
         def on_enthurt(eid, dmg):
             e = self.entitys.byeid(eid)
             if e is not None:
@@ -1440,7 +1469,13 @@ class VoxelWorld:
 
         # server owned
         def on_health(hp):
+
+            d = self.p.health - hp
             self.p.health = hp
+
+            if d > 0:
+                self.p.hurtt = HURT_T
+                self.hurtfx(d)
 
         def on_hunger(hg):
             self.p.hunger = hg
@@ -1452,6 +1487,8 @@ class VoxelWorld:
         self.netclient.on_entstate    = on_entstate
         self.netclient.on_entgone     = on_entgone
         self.netclient.on_enthurt     = on_enthurt
+        self.netclient.on_entanim     = on_entanim
+        self.netclient.on_entdbg      = on_entdbg
         self.netclient.on_svchunks    = on_svchunks
         self.netclient.on_chunk       = on_chunk
         self.netclient.on_playerjoin  = on_playerjoin

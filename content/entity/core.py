@@ -11,6 +11,10 @@ KIND_ITEM   = 2
 KIND_DUMMY  = 3
 KIND_ZOMBIE = 4
 
+# anims
+ANIM_SWING = 1
+SWING_T    = 0.3
+
 # renderers
 REND_NONE   = 0
 REND_CUBE   = 1
@@ -122,6 +126,17 @@ class Entity:
         self.swing    = 0.0
         self.driven   = False
         self.ai       = None
+
+        
+        self.mspd     = 0.0
+        self.lpos     = self.pos.copy()
+        self.navtgt   = None
+        self.dbgai    = "" # goals
+
+        self.path     = [] # a* waypoints
+        self.pathi    = 0
+        self.patht    = 0.0
+        self.pathtgt  = None
         self.still    = False
         self.snt      = False
         self.frozen   = False
@@ -163,6 +178,11 @@ class Entity:
         if self.ai is not None: self.ai.tick(self, w, dt)
 
 
+    # the owner decides an anim happened, everyone plays it
+    def playanim(self, anim):
+        if anim == ANIM_SWING: self.swing = SWING_T
+
+
     def setnet(self, pos, vy):
         self.tpos   = np.array(pos, dtype='f4')
         self.vel[1] = vy
@@ -183,11 +203,17 @@ class Entity:
 
 
     def dbgtag(self):
+
         who = f"#{self.eid}" if self.eid else "local"
         gr  = "grnd" if self.grounded else "air"
         d   = float(np.linalg.norm(self.tpos - self.pos)) if self.eid else 0.0
         nm  = self.type.nm if self.type else "?"
-        ai  = " " + ",".join(self.ai.names()) if self.ai else ""
+
+        # server owned goals ->ENTITY_DBG
+        if   self.dbgai:      ai = " " + self.dbgai
+        elif self.ai:         ai = " " + ",".join(self.ai.names())
+        else:                 ai = ""
+
         return (
             f"{who} {nm} y{self.pos[1]:.1f} vy{self.vel[1]:.1f} "
             f"hp{self.hp} {gr} d{d:.2f}{ai}"

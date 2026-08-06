@@ -6,7 +6,7 @@ import numpy as np
 from network.protocol import (
     MessageType, ReadMessage, validskin,
     mkjoin, mkposupd, mkblockchg, mkchat, mkitemdrop, mkitempick, mksvrq,
-    mkchunkreq, mkskin, mkblockdmg, mkplayerdmg, mkentattack,
+    mkchunkreq, mkskin, mkblockdmg, mkplayerdmg, mkentattack, mkdbgmode,
 )
 from config import SV_PORT, SV_TIMEOUT, CL_UPD_INT, HURT_T
 from identity import whoami, get_tokenbytes
@@ -70,6 +70,7 @@ class NetworkClient:
         self.on_entgone     = None
         self.on_enthurt     = None
         self.on_entanim     = None
+        self.on_entdbg      = None
         self.on_svchunks    = None
         self.on_chunk       = None
         self.on_svmsg       = None
@@ -248,6 +249,10 @@ class NetworkClient:
         self.wsend(mkentattack(eid))
 
 
+    def senddbgmode(self, on):
+        self.wsend(mkdbgmode(on))
+
+
     def sendskin(self):
         fp = _respath.text_player()
         if not os.path.exists(fp): return
@@ -413,6 +418,11 @@ class NetworkClient:
                 elif mt == MessageType.ENTITY_ANIM:
                     eid, anim = self.reader.parse_entanim(data)
                     if self.on_entanim: self.on_entanim(eid, anim)
+
+
+                elif mt == MessageType.ENTITY_DBG:
+                    eid, nav, txt = self.reader.parse_entdbg(data)
+                    if self.on_entdbg: self.on_entdbg(eid, nav, txt)
 
 
                 elif mt == MessageType.BLOCK_BULK:

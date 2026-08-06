@@ -72,7 +72,17 @@ class EntityManager:
             else:
                 i.netease(dt)
 
+
+
+            
+            sp = float(np.linalg.norm(i.pos - i.lpos)) / max(dt, 1e-5)
+            i.mspd = i.mspd * 0.7 + sp * 0.3
+            i.lpos = i.pos.copy()
+
+
             if not i.alive: self.ents.pop(i.eid, None)
+
+
 
         if local: self.syncents(dt, chunker)
 
@@ -87,6 +97,10 @@ class EntityManager:
 
     def hurtplayer(self, t, dmg):
         t.hurt(dmg)
+
+    # singleplayer, nobody to tell
+    def entanim(self, e, anim):
+        e.playanim(anim)
 
 
 
@@ -130,10 +144,10 @@ class EntityManager:
 
 
     def posefor(self, e):
-        spd = math.sqrt(float(e.vel[0]) ** 2 + float(e.vel[2]) ** 2)
+        #spd = math.sqrt(float(e.vel[0]) ** 2 + float(e.vel[2]) ** 2)
         ra = la = rl = ll = 0.0
 
-        if spd > 0.1:
+        if e.mspd > 0.35:
             wc = e.age * 4.0
             ra = math.sin(wc) * 50.0
             la = -ra

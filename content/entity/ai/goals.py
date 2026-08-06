@@ -4,6 +4,7 @@ import numpy as np
 
 from entity.ai import nav
 from entity.ai.goal import Goal, MOVE, LOOK
+from entity.core   import ANIM_SWING
 
 
 
@@ -45,15 +46,18 @@ class Melee(Goal):
         return self.tgt is not None
 
     # sticky
+    # re-pick on tick -> new PlayerState ie logout/die
     def running(self, e, w):
-        if self.tgt is None: return False
-        return float(np.linalg.norm(self.tgt.pos - e.pos)) <= self.rng * 1.5
+        self.tgt = nearest(e, w, self.rng * 1.5)
+        return self.tgt is not None
 
 
 
 
     def stop(self, e, w):
         self.tgt = None
+        e.navtgt = None
+        e.path   = []
         nav.stop(e)
 
 
@@ -72,16 +76,17 @@ class Melee(Goal):
             nav.face(e, t.pos[0], t.pos[2])
 
             if self.cd <= 0.0:
-                self.cd    = self.cool
-                e.swing    = 0.3
+                self.cd = self.cool
+                w.entanim(e, ANIM_SWING)
                 w.hurtplayer(t, self.dmg)
 
 
         else:
-            nav.moveto(
-                e, w, 
-                t.pos[0], t.pos[2], 
-                e.type.spd
+            nav.pathto(
+                e, w,
+                t.pos[0], t.pos[1], t.pos[2],
+                e.type.spd, dt,
+                stopd=self.reach * 0.8,
             )
 
 
@@ -113,6 +118,8 @@ class Wander(Goal):
 
     def stop(self, e, w):
         self.tgt = None
+        e.navtgt = None
+        e.path   = []
         nav.stop(e)
 
 
@@ -135,12 +142,14 @@ class Wander(Goal):
         
 
         # stop for a bit
-        if nav.moveto(e, w, self.tgt[0], self.tgt[1], e.type.spd * 0.6):
+        if nav.pathto(e, w, self.tgt[0], e.pos[1], self.tgt[1], e.type.spd * 0.6, dt):
             self.tgt  = None
+            e.navtgt  = None
             self.wait = random.uniform(*self.idle)
 
         elif abs(float(e.vel[0])) < 0.01 and abs(float(e.vel[2])) < 0.01:
             self.tgt  = None
+            e.navtgt  = None
             self.wait = random.uniform(*self.idle)
 
 

@@ -33,6 +33,8 @@ class MessageType(IntEnum):
     ENTITY_HURT     = 51
     ENTITY_ANIM     = 52
     ENTITY_ATTACK   = 53
+    ENTITY_DBG      = 54
+    DBG_MODE        = 55
     SV_CHUNKS       = 43
     BLOCK_BULK      = 44
     CHUNK_DATA      = 45
@@ -205,6 +207,26 @@ def mkentanim(eid, anim):
 
 def mkentattack(eid):
     return struct.pack('<BI', MT.ENTITY_ATTACK, eid)
+
+
+
+DBG_MAXPTS = 24
+
+# debug path + goal
+def mkentdbg(eid, pts, txt):
+    b = txt.encode('utf-8')[:255]
+    n = min(len(pts), DBG_MAXPTS)
+
+    d = struct.pack('<BIB', MT.ENTITY_DBG, eid, n)
+    for i in pts[:n]:
+        d += struct.pack('<3f', float(i[0]), float(i[1]), float(i[2]))
+
+    return d + struct.pack('<B', len(b)) + b
+
+
+
+def mkdbgmode(on):
+    return struct.pack('<BB', MT.DBG_MODE, 1 if on else 0)
 
 
 
@@ -446,6 +468,7 @@ class ReadMessage:
             MT.ENTITY_HURT:    6,
             MT.ENTITY_ANIM:    6,
             MT.ENTITY_ATTACK:  5, # I(4)
+            MT.DBG_MODE:       2, # B(1)
         }
         
         
@@ -556,6 +579,22 @@ class ReadMessage:
             if not self._pull(28 + n): return None
             d = self.buffer[:28 + n]
             self.buffer = self.buffer[28 + n:]
+            return (mt, d)
+
+
+
+        # B + I + B + 3f + B(n) + txt
+        if mt == MT.ENTITY_DBG:
+            if not self._pull(6): return None
+            need = 6 + self.buffer[5] * 12 + 1
+
+            if not self._pull(need): return None
+            tl = self.buffer[need - 1]
+
+            if not self._pull(need + tl): return None
+            d = self.buffer[:need + tl]
+
+            self.buffer = self.buffer[need + tl:]
             return (mt, d)
 
 
@@ -764,10 +803,29 @@ class ReadMessage:
         return struct.unpack('<I', data[1:])[0]
 
 
+    def parse_entdbg(self, data):
+        eid = struct.unpack('<I', data[1:5])[0]
+        n   = data[5]
+        off = 6
+        pts = []
+
+        for _ in range(n):
+            pts.append(struct.unpack('<3f', data[off:off+12]))
+            off += 12
+
+        tl = data[off]; off += 1
+        return eid, pts, data[off:off+tl].decode('utf-8', errors='replace')
+
+
+    def parse_dbgmode(self, data):
+        return bool(data[1])
+
+
     def parse_blockbulk(self, data):
         cnt = struct.unpack('<I', data[1:5])[0]
         out = []
         off = 5
+
         for _ in range(cnt):
             out.append(struct.unpack('<iiiH', data[off:off+14]))
             off += 14

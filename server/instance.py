@@ -18,7 +18,8 @@ from network.protocol import (
     MessageType, ReadMessage,
     mkservmsg, mkpos, mkitemcollect, mkdisconnect, mksvreply, mkleft, mkseed, mkpjoin,
     mkblockupd, mkchat, mklist,
-    mkentspawn, mkentstate, mkentgone, mkenthurt, mksvchunks, mkblockbulk, mkchunk,
+    mkentspawn, mkentstate, mkentgone, mkenthurt, mkentdbg, mkentanim,
+    mksvchunks, mkblockbulk, mkchunk,
     mkplayerskin, validskin, mkblockdmgupd, mkplayerhurt, mkhealth, mkhunger,
     packtnt, packitem, GONE_DEATH, GONE_RANGE, ENT_MAXBATCH,
 )
@@ -85,6 +86,7 @@ class PlayerState:
         self.ltele  = 0.0
         self.sentck = set()   # chunks done
         self.senteid = set()
+        self.dbg     = False  # f3 on his end -> we ship ai debug
         self.sq     = deque()   # normal traffic
         self.cq     = deque()   # chunk payloads, yield to sq
         self.slock  = threading.Lock()
@@ -289,6 +291,7 @@ class Instance:
     STREAM_MAX    = 24    # chunks queued per player per pass
     ENT_DIST      = (RENDER_DIST + 1) * CHUNK_SZ
     LOAD_INT      = 0.25
+    DBG_INT       = 0.25
     MAX_CHAT      = 256
     BLOCK_MASKID = 0x3FF
     
@@ -617,6 +620,9 @@ class Instance:
                 elif mt == MessageType.ENTITY_ATTACK:
                     eid = p.reader.parse_entattack(data)
                     self.attackent(p, eid)
+
+                elif mt == MessageType.DBG_MODE:
+                    p.dbg = p.reader.parse_dbgmode(data)
                     
                     
 
@@ -971,6 +977,7 @@ class Instance:
         lpos = time.time()
         lt   = time.time()
         lld  = 0.0
+        ldbg = 0.0
         while self.running:
             t0 = time.time()
             dt = t0 - lt
@@ -986,6 +993,9 @@ class Instance:
                 self.streaments()
                 #self.bcastitems()
                 lpos = t0
+            if t0 - ldbg >= self.DBG_INT:
+                self.streamdbg()
+                ldbg = t0
             sd = time.time() - t0
             if sd < self.tint: time.sleep(self.tint - sd)
 
@@ -1106,6 +1116,36 @@ class Instance:
 
     def hurtplayer(self, t, dmg):
         self.hurtpl(t, dmg)
+
+
+    # we decide it happened, the clients draw it
+    def entanim(self, e, anim):
+        e.playanim(anim)
+        with self.plock:
+            pl = [p for p in self.players.values() if p.conn]
+        for p in pl:
+            if e.eid in p.senteid: self.send(p, mkentanim(e.eid, anim))
+
+
+    # debug : target + goal
+    def streamdbg(self):
+        with self.plock:
+            pl = [p for p in self.players.values() if p.conn and p.dbg]
+        if not pl: return
+
+
+        with self.entlock:
+            snap = []
+            for e in self.ents.values():
+                if not (e.ai or e.navtgt): continue
+                pts = list(e.path[e.pathi:]) if e.path else []
+                if not pts and e.navtgt is not None: pts = [e.navtgt]
+                snap.append((e.eid, pts, ",".join(e.ai.names()) if e.ai else ""))
+
+
+        for p in pl:
+            for eid, pts, txt in snap:
+                if eid in p.senteid: self.send(p, mkentdbg(eid, pts, txt))
 
         
 
