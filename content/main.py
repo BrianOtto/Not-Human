@@ -428,7 +428,7 @@ class VoxelWorld:
         self._tlock      = threading.Lock()
         
         self.blockentys   = BlockEntityManager(self.ctx, self.texture)
-        self.entitys      = EntityManager(self.ctx, self.pmodel)
+        self.entitys      = EntityManager(self.ctx, self.pmodel, self)
 
         
         

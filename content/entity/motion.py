@@ -190,9 +190,13 @@ def tickmotion(e, ck, dt):
     else:
         e.vel[1] = max(e.vel[1] + t.grav * dt, t.term)
 
-    f = t.fric if e.grounded else t.drag
-    e.vel[0] *= f
-    e.vel[2] *= f
+    #f = t.fric if e.grounded else t.drag
+    if not e.driven:
+        f = t.fric if e.grounded else t.drag
+        e.vel[0] *= f
+        e.vel[2] *= f
+
+        
 
     fp, grnd, wall = movebox(ck, e.pos, e.vel, t.hw, t.h, t.step, dt)
     e.pos      = fp
@@ -203,6 +207,8 @@ def tickmotion(e, ck, dt):
     if e.still:
         e.vel[0] = 0.0
         e.vel[2] = 0.0
+
+    e.driven = False
 
 
 """

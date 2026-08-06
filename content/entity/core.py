@@ -6,9 +6,10 @@ from config import (
 
 
 # kind ids
-KIND_TNT   = 1
-KIND_ITEM  = 2
-KIND_DUMMY = 3
+KIND_TNT    = 1
+KIND_ITEM   = 2
+KIND_DUMMY  = 3
+KIND_ZOMBIE = 4
 
 # renderers
 REND_NONE   = 0
@@ -34,8 +35,10 @@ class EntityType:
         drag    = ENT_DRAG,
         fric    = ENT_FRIC,
         step    = 0.0,
+        spd     = 0.0,
         eye     = None,
         yoff    = 0.0,
+        armsup  = False,
         rend    = REND_CUBE,
         persist = False,
         despawn = 0.0,
@@ -55,6 +58,8 @@ class EntityType:
         self.drag    = drag
         self.fric    = fric
         self.step    = step
+        self.spd     = spd # speed
+        self.armsup  = armsup
         self.eye     = eye if eye is not None else h * 0.85
         self.yoff    = yoff # feet -> wire pos
         self.rend    = rend
@@ -114,6 +119,9 @@ class Entity:
         self.grounded = False
         self.age      = 0.0
         self.hurtt    = 0.0
+        self.swing    = 0.0
+        self.driven   = False
+        self.ai       = None
         self.still    = False
         self.snt      = False
         self.frozen   = False
@@ -140,8 +148,19 @@ class Entity:
         return o
 
 
+    # bookkeeping
     def tick(self, dt, w):
         self.age += dt
+        if self.hurtt > 0.0: self.hurtt -= dt
+        if self.swing > 0.0: self.swing -= dt
+
+
+
+
+
+    
+    def think(self, dt, w):
+        if self.ai is not None: self.ai.tick(self, w, dt)
 
 
     def setnet(self, pos, vy):
@@ -168,9 +187,10 @@ class Entity:
         gr  = "grnd" if self.grounded else "air"
         d   = float(np.linalg.norm(self.tpos - self.pos)) if self.eid else 0.0
         nm  = self.type.nm if self.type else "?"
+        ai  = " " + ",".join(self.ai.names()) if self.ai else ""
         return (
             f"{who} {nm} y{self.pos[1]:.1f} vy{self.vel[1]:.1f} "
-            f"hp{self.hp} {gr} d{d:.2f}"
+            f"hp{self.hp} {gr} d{d:.2f}{ai}"
         )
 
 

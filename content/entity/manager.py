@@ -17,9 +17,11 @@ SYNC_INT = 1.0
 
 
 class EntityManager:
-    def __init__(self, ctx, pmodel):
+    def __init__(self, ctx, pmodel, world=None):
         self.ctx    = ctx
         self.pmodel = pmodel
+        self.world  = world
+        self.chunker = None
         self.ents   = {}
         self.texs   = {}
         self.neid   = -1
@@ -58,15 +60,35 @@ class EntityManager:
 
     
     def update(self, dt, chunker, local=True):
+        self.chunker = chunker
+
+
         for i in list(self.ents.values()):
             i.tick(dt, self)
 
-            if local: motion.tickmotion(i, chunker, dt)
-            else:     i.netease(dt)
+            if local:
+                if not i.frozen: i.think(dt, self)
+                motion.tickmotion(i, chunker, dt)
+            else:
+                i.netease(dt)
 
             if not i.alive: self.ents.pop(i.eid, None)
 
         if local: self.syncents(dt, chunker)
+
+
+
+
+
+    # mirror of Instance.aiplayers @server
+    def aiplayers(self):
+        p = self.world.p if self.world else None
+        return [p] if p is not None and p.health > 0 else []
+
+    def hurtplayer(self, t, dmg):
+        t.hurt(dmg)
+
+
 
 
     
@@ -117,6 +139,17 @@ class EntityManager:
             la = -ra
             rl = ra
             ll = rl
+
+            
+
+        # zombies and stuff
+        if e.type.armsup:
+            ra = la = -80.0
+
+        if e.swing > 0.0:
+            sw = math.sin((1.0 - e.swing / 0.3) * math.pi) * -60.0
+            ra += sw
+            la += sw
 
         return self.pmodel.posemats(
             pitch=e.pitch, r_arm=ra, l_arm=la, r_leg=rl, l_leg=ll

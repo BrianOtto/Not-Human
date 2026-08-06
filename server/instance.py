@@ -1099,7 +1099,18 @@ class Instance:
 
 
 
-    # entities ride with their chunk 
+    
+    def aiplayers(self):
+        with self.plock:
+            return [p for p in self.players.values() if p.conn and p.health > 0]
+
+    def hurtplayer(self, t, dmg):
+        self.hurtpl(t, dmg)
+
+        
+
+
+    # entities ride with their chunk
     def syncents(self):
         rdy = {k for k, c in self.chunker.chunks.items() if c.gen_ready}
 
@@ -1216,6 +1227,7 @@ class Instance:
             if not self.ents: return
             for e in self.ents.values():
                 e.tick(dt, self)
+                if not e.frozen: e.think(dt, self)
                 motion.tickmotion(e, self.chunker, dt)
 
             done = [(i, e) for i, e in self.ents.items() if not e.alive]

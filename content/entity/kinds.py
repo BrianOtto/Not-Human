@@ -1,9 +1,10 @@
 from config import DROP_F, DROP_LIFETIME, DROP_PICKUP_DELAY, ENT_STEP
 from entity.core import (
     Entity, regentity,
-    KIND_TNT, KIND_ITEM, KIND_DUMMY,
+    KIND_TNT, KIND_ITEM, KIND_DUMMY, KIND_ZOMBIE,
     REND_CUBE, REND_SPRITE, REND_MODEL,
 )
+from entity.ai import Controller, Melee, Wander, LookAt
 
 
 TNT_FUSE = 4.0
@@ -19,7 +20,7 @@ class TNTEnt(Entity):
 
 
     def tick(self, dt, w):
-        self.age  += dt
+        super().tick(dt, w)
         self.fuse -= dt
         if self.fuse <= 0.0: self.kill()
 
@@ -50,7 +51,7 @@ class ItemDrop(Entity):
 
 
     def tick(self, dt, w):
-        self.age += dt
+        super().tick(dt, w)
         if self.delay > 0.0: self.delay -= dt
         
         if self.age > DROP_LIFETIME or self.pos[1] < 0.0: self.kill()
@@ -79,6 +80,16 @@ class ItemDrop(Entity):
     rend=REND_MODEL, persist=True,
 )
 class DummyEnt(Entity):
-    def tick(self, dt, w):
-        self.age += dt
-        if self.hurtt > 0.0: self.hurtt -= dt
+    pass
+
+
+
+
+@regentity(KIND_ZOMBIE, "zombie",
+    w=0.6, h=1.8, hp=20, spd=2.6, step=ENT_STEP,
+    rend=REND_MODEL, persist=True, armsup=True,
+)
+class ZombieEnt(Entity):
+    def __init__(self, **kw):
+        super().__init__(**kw)
+        self.ai = Controller([Melee(), Wander(), LookAt()])
