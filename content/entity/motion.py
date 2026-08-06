@@ -34,6 +34,29 @@ def boxfree(ck, x, y, z, hw, h, m=ENT_EPS):
 
 
 
+# slab method
+def rayaabb(org, dr, box, maxd=1e9):
+    t0, t1 = 0.0, maxd
+
+    for i in range(3):
+        d = dr[i]
+        lo, hi = box[i], box[i + 3]
+
+        if abs(d) < 1e-8:
+            if org[i] < lo or org[i] > hi: return None
+            continue
+
+        a = (lo - org[i]) / d
+        b = (hi - org[i]) / d
+        if a > b: a, b = b, a
+
+        if a > t0: t0 = a
+        if b < t1: t1 = b
+        if t0 > t1: return None
+
+    return t0
+
+
 def fluidat(ck, x, y, z):
     from world.blocks import WATER, WATER_FLOWING, LAVA, LAVA_FLOWING
     b = ck.getblock(int(flr(x)), int(flr(y)), int(flr(z)))

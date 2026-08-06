@@ -285,6 +285,7 @@ def onEvent(w, events):
                 if i.button == 1:
                     w.p.swing()
 
+                    if w.onattack(): continue
 
                     if w.p.gmode:
                         tb, face = w.p.targetblock(5.0)

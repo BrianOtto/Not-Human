@@ -50,41 +50,65 @@ class CommandManager:
 
     def regbuiltins(self):
         r = self.registry
-        r.register("help", self.cmdhelp, aliases=("?",),
+        r.register(
+            "help", self.cmdhelp, aliases=("?",),
             usage="/help [command]",
-            desc="List of commands")
+            desc="List of commands"
+        )
 
-        r.register("tp", self.cmdtp, aliases=("teleport",),
+        r.register(
+            "tp", self.cmdtp, aliases=("teleport",),
             usage="/tp <x> <y> <z> | /tp <destination> | /tp <targets> <x> <y> <z> | /tp <targets> <destination>",
-            desc="Teleport to <coords> or player")
+            desc="Teleport to <coords> or player"
+        )
 
-        r.register("give", self.cmdgive,
+        r.register(
+            "give", self.cmdgive,
             usage="/give <targets> <item> [count]",
-            desc="Give items to players")
+            desc="Give items to players"
+        )
 
-        r.register("time", self.cmdtime,
+        r.register(
+            "time", self.cmdtime,
             usage="/time [query] | /time set <day|noon|night|midnight|ticks> | /time set <deg>deg | /time add <ticks> | /time add <deg>deg",
-            desc="Change sun angle (sun_pos)")
+            desc="Change sun angle (sun_pos)"
+        )
 
-        r.register("gamemode", self.cmdgamemode, aliases=("gm",),
+        r.register(
+            "gamemode", self.cmdgamemode, aliases=("gm",),
             usage="/gamemode <survival|creative|0|1>",
-            desc="Set gamemode")
+            desc="Set gamemode"
+        )
 
-        r.register("health", self.cmdhealth, aliases=("hp",),
+        r.register(
+            "health", self.cmdhealth, aliases=("hp",),
             usage="/health <amount> | /health <targets> <amount>",
-            desc="Set health")
+            desc="Set health"
+        )
 
-        r.register("hunger", self.cmdhunger, aliases=("food",),
+        r.register(
+            "hunger", self.cmdhunger, aliases=("food",),
             usage="/hunger <amount> | /hunger <targets> <amount>",
-            desc="Set hunger")
+            desc="Set hunger"
+        )
 
-        r.register("server", self.cmdsrv,
+        r.register(
+            "server", self.cmdsrv,
             usage="/server start [port] | /server connect <host:port> [name] | /server stop | /server status",
-            desc="Manage mulltiplayer server")
+            desc="Manage mulltiplayer server"
+        )
 
-        r.register("locatebiome", self.cmdlocbiome, aliases=("findbiome",),
+        r.register(
+            "locatebiome", self.cmdlocbiome, aliases=("findbiome",),
             usage="/locatebiome <biome>",
-            desc="Find nearest biome")
+            desc="Find nearest biome"
+        )
+
+        r.register(
+            "summon", self.cmdsummon,
+            usage="/summon <entity> [x y z]",
+            desc="Spawn an entity"
+        )
 
 
 
@@ -424,6 +448,35 @@ class CommandManager:
 
         ctx.world.p.setgmode(m)
         ctx.ok(f"Gamemode set to {'creative' if m else 'survival'}")
+
+
+    def cmdsummon(self, ctx, args):
+        from entity.core import kindbyname, kindnames
+
+        if not args: raise CommandError("Usage: /summon <entity> [x y z]")
+
+        nm   = args[0].lower()
+        kind = kindbyname(nm)
+        if kind is None:
+            raise CommandError(f"Unknown entity: {nm} (try {', '.join(kindnames())})")
+
+        pos = ctx.executor.pos().copy()
+        if len(args) >= 4:
+            pos = np.array([
+                parse_coord(args[1], pos[0]),
+                parse_coord(args[2], pos[1]),
+                parse_coord(args[3], pos[2]),
+            ], dtype='f4')
+
+        sv = ctx.world.netserver
+        if sv:
+            eid = sv.spawnat(kind, pos)
+        else:
+            e   = ctx.world.entitys.spawn(kind, pos=pos)
+            eid = e.eid if e else 0
+
+        if not eid: raise CommandError(f"Could not summon {nm}")
+        ctx.ok(f"Summoned {nm} (#{eid})")
 
 
     def cmdsrv(self, ctx, args):

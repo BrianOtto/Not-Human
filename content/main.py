@@ -30,7 +30,7 @@ from config import (
     RENDER_DIST, SEED, SV_PORT, WATER_OFF,
     WATER_PLANE, SUN_SZ, HLIGHT_SCL, LINE_W,
     SCL_HUD, F_PLANE, RAYCAST_DIST,
-    HARDNESS, MINE_MULT, CRACK_SCL, HURT_T, POP_SCL, POP_YOFF
+    HARDNESS, MINE_MULT, CRACK_SCL, HURT_T, POP_SCL, POP_YOFF, ENT_REACH
 )
 
 
@@ -53,7 +53,9 @@ from world.animation import getanims
 from world.renderers.extruded import ExtrudedRenderer
 from engine.gamma import Gamma
 from entity.blockenty import BlockEntityManager, itemblock
-from entity.core import KIND_TNT, KIND_ITEM
+from entity.core import KIND_TNT, KIND_ITEM, KIND_DUMMY
+from entity.manager import EntityManager
+from entity import motion
 from network.protocol import unpacktnt, unpackitem, GONE_DEATH
 import keys
 
@@ -421,11 +423,13 @@ class VoxelWorld:
         self.tabdown     = False
         self.ibuff       = ""
         self.commands = CommandManager()
+        self.netserver   = None
         self.ptasks      = []
         self._tlock      = threading.Lock()
         
         self.blockentys   = BlockEntityManager(self.ctx, self.texture)
-        
+        self.entitys      = EntityManager(self.ctx, self.pmodel)
+
         
         
         self.gamma_shader = Gamma(self.ctx, WIN_W, WIN_H)
@@ -559,6 +563,40 @@ class VoxelWorld:
 
 
     
+    def enthurtfx(self, e, dmg):
+        hp    = e.pos.copy()
+        hp[1] += e.type.h + 0.5
+        self.dmgtext.hit(hp, dmg, e.type.hp or 20)
+
+
+    def onattack(self):
+        org = self.p.cam.pos
+        dr  = self.p.cam.front
+
+        e = self.entitys.pick(org, dr, ENT_REACH)
+        if e is None: return False
+
+        # check block in way
+        tb = self.p.targetblock(ENT_REACH)[0]
+        if tb:
+            bd = motion.rayaabb(
+                org, dr,
+                (tb[0], tb[1], tb[2], tb[0] + 1, tb[1] + 1, tb[2] + 1),
+                ENT_REACH,
+            )
+            ed = motion.rayaabb(org, dr, e.aabb(), ENT_REACH)
+            if bd is not None and ed is not None and bd < ed: return False
+
+        # wait for ENTITY_HURT
+        if self.netclient and self.netclient.isconn():
+            self.netclient.sendattack(e.eid)
+        else:
+            e.hurt(1)
+            self.enthurtfx(e, 1)
+
+        return True
+
+
     def senddmg(self, tb, st):
         if (tb, st) == self._dmgsent: return
         self._dmgsent = (tb, st)
@@ -632,7 +670,11 @@ class VoxelWorld:
             self.particles.update(dt)
             self.dmgtext.update(dt)
             self.blockentys.update(dt, self.worldctx())
-            
+            self.entitys.update(
+                dt, self.chunker,
+                local=not (self.netclient and self.netclient.isconn()),
+            )
+
             getanims().update(dt)
             pp = self.p.getpos()
             
@@ -763,6 +805,7 @@ class VoxelWorld:
             
             self.itementys.render(mvp, self.sun_dir)
             self.blockentys.render(mvp, self.sun_dir)
+            self.entitys.render(mvp, self.sun_pos)
 
             self.render_extruded.render(mvp, ambient=0.4)
             
@@ -1064,6 +1107,9 @@ class VoxelWorld:
         self.text_pop.clear()
         if self.render_helditem: self.render_helditem.release()
         if self.itementys:    self.itementys.release()
+        if self.entitys:
+            self.entitys.saveall()
+            self.entitys.release()
         if self.render_extruded: self.render_extruded.cleanup()
         if self.gamma_shader:   self.gamma_shader.release()
         self.chunker.shutdown()
@@ -1207,6 +1253,7 @@ class VoxelWorld:
             self.noise = PerlinNoise(seed=seed)
             self.chunker.world.noise = self.noise
             self.chunker.resetworld()
+            self.entitys.clear()
             if self.pmodpay:
                 self.ui.chatmsg(f"restoring {len(self.pmodpay)} chunks...", color=(200, 200, 255))
                 for k, m in self.pmodpay.items():
@@ -1280,6 +1327,11 @@ class VoxelWorld:
                         it.grounded = False
 
 
+                else:
+                    e = self.entitys.spawn(kind, eid=eid, pos=pos, yaw=yaw)
+                    if e is not None: e.hp = hp
+
+
 
             with self._tlock: self.ptasks.append(mk)
 
@@ -1289,6 +1341,7 @@ class VoxelWorld:
                 for eid, pos, yaw, vy, anim in ents:
                     e = self.blockentys.byeid(eid)
                     if e is None: e = self.itementys.byeid(eid)
+                    if e is None: e = self.entitys.byeid(eid)
                     if e is None: continue
                     e.setnet(pos, vy)
                     e.yaw = yaw
@@ -1306,12 +1359,22 @@ class VoxelWorld:
                     return
 
                 it = self.itementys.byeid(eid)
-                if it is not None: it.active = False
+                if it is not None:
+                    it.active = False
+                    return
+
+                self.entitys.remove(eid)
 
             with self._tlock: self.ptasks.append(rm)
 
 
-        def on_enthurt(eid, dmg): pass
+        def on_enthurt(eid, dmg):
+            e = self.entitys.byeid(eid)
+            if e is not None:
+                e.hurtt = HURT_T
+                e.hp    = max(0, e.hp - dmg)
+                self.enthurtfx(e, dmg)
+
         def on_playerjoin(pid, nm, pos): self.ui.chatmsg(f"'{nm}' joined", color=(200, 200, 255))
         def on_playerleft(pid):          self.ui.chatmsg(f"'{pid}'  left", color=(200, 200, 255))
         
@@ -1511,6 +1574,12 @@ class VoxelWorld:
             self.rendertag(
                 mvp, e.pos, e.dbgtag(),
                 yoff=1.4, cache=self.dbgtags, maxn=96,
+            )
+
+        for i in self.entitys.ents.values():
+            self.rendertag(
+                mvp, i.pos, i.dbgtag(),
+                yoff=i.type.h + 0.4, cache=self.dbgtags, maxn=96,
             )
 
         for i in self.itementys.items:

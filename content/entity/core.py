@@ -1,7 +1,7 @@
 import numpy as np
 
 from config import (
-    ENT_GRAV, ENT_TERMVEL, ENT_DRAG, ENT_FRIC, ENT_EASE
+    ENT_GRAV, ENT_TERMVEL, ENT_DRAG, ENT_FRIC, ENT_EASE, HURT_T
 )
 
 
@@ -113,6 +113,7 @@ class Entity:
         self.alive    = True
         self.grounded = False
         self.age      = 0.0
+        self.hurtt    = 0.0
         self.still    = False
         self.snt      = False
         self.frozen   = False
@@ -153,7 +154,8 @@ class Entity:
 
     def hurt(self, dmg, src=None):
         if dmg <= 0 or not self.alive: return False
-        self.hp = max(0, self.hp - int(dmg))
+        self.hp    = max(0, self.hp - int(dmg))
+        self.hurtt = HURT_T
         if self.hp <= 0: self.kill()
         return True
 

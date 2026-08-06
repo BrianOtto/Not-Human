@@ -12,7 +12,7 @@ from world.terrain import ChunkManager, PerlinNoise
 import config
 from config import (
     CHUNK_SZ, CHUNK_H, SV_PORT, SV_HOST, SEED,
-    SV_RATE, SV_TIMEOUT, SV_MAXONLINE, SV_MOTD, RENDER_DIST,
+    SV_RATE, SV_TIMEOUT, SV_MAXONLINE, SV_MOTD, RENDER_DIST, ENT_REACH,
 )
 from network.protocol import (
     MessageType, ReadMessage,
@@ -24,8 +24,9 @@ from network.protocol import (
 )
 from identity import bytetoken
 from entity import motion
-from entity.core import KIND_TNT, KIND_ITEM
+from entity.core import KIND_TNT, KIND_ITEM, mkentity
 from entity.kinds import TNTEnt, ItemDrop
+from entity.store import entck, saveents, loadents
 
 
 # tnt
@@ -48,7 +49,6 @@ MAX_HUNGER = 20
 ITEM_LIFE = 300.0
 ITEM_FRIC = 0.8
 ITEM_REACH = 2.5
-ENT_REACH  = 4.0
 
 
 def _tntsphere(r=TNT_BLAST_R):
@@ -115,6 +115,7 @@ class Instance:
         self.commands = None
         self.ents    = {}   # eid -> Entity
         self.entlock = threading.Lock()
+        self.entloaded = set()   # chunks with .ent in mem
         self._eid    = 0
         self.eidlock = threading.Lock()
         self._lastkeys = None
@@ -363,6 +364,7 @@ class Instance:
             
             
         if self.sock:      self.sock.close()
+        self.saveallents()
         if self.chunker: self.chunker.shutdown()
         
         print("Server stopped.")
@@ -1002,6 +1004,7 @@ class Instance:
                 cs.add((int(e.pos[0] // CHUNK_SZ), int(e.pos[2] // CHUNK_SZ)))
 
         self.chunker.updateloadsmulti(sorted(cs))
+        self.syncents()
         self.streamchunks()
 
         keys = sorted(self.chunker.chunks.keys())
@@ -1090,6 +1093,61 @@ class Instance:
         for eid, pos, life in snap:
             self.send(p, mkentspawn(eid, TNT_ID, pos, life))
     """
+
+
+
+
+
+
+    # entities ride with their chunk 
+    def syncents(self):
+        rdy = {k for k, c in self.chunker.chunks.items() if c.gen_ready}
+
+        for k in rdy - self.entloaded:
+            self.entloaded.add(k)
+            for d in loadents(self.chunker.chunks_dir, k[0], k[1]):
+                e = mkentity(d.get('kind', 0), eid=self.newid())
+                if e is None: continue
+                e.load(d)
+                with self.entlock: self.ents[e.eid] = e
+
+
+        for k in list(self.entloaded - rdy):
+            self.entloaded.discard(k)
+            self.dropents(k)
+
+
+    def dropents(self, k):
+        with self.entlock:
+            gone = [
+                e for e in self.ents.values()
+                if e.type.persist and entck(e) == k
+            ]
+            for e in gone: del self.ents[e.eid]
+
+        saveents(self.chunker.chunks_dir, k[0], k[1], gone)
+        for e in gone: self.entgone(e.eid)
+
+
+    def saveallents(self):
+        with self.entlock:
+            live = [e for e in self.ents.values() if e.type.persist]
+
+        byck = {k: [] for k in self.entloaded}
+        for e in live: byck.setdefault(entck(e), []).append(e)
+
+        for k, es in byck.items():
+            saveents(self.chunker.chunks_dir, k[0], k[1], es)
+
+
+    def spawnat(self, kind, pos, yaw=0.0):
+        eid = self.newid()
+        e   = mkentity(kind, eid=eid, pos=pos)
+        if e is None: return 0
+
+        e.yaw = yaw
+        with self.entlock: self.ents[eid] = e
+        return eid
 
 
     def entpay(self, e):

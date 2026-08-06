@@ -1,8 +1,8 @@
-from config import DROP_F, DROP_LIFETIME, DROP_PICKUP_DELAY
+from config import DROP_F, DROP_LIFETIME, DROP_PICKUP_DELAY, ENT_STEP
 from entity.core import (
     Entity, regentity,
-    KIND_TNT, KIND_ITEM,
-    REND_CUBE, REND_SPRITE,
+    KIND_TNT, KIND_ITEM, KIND_DUMMY,
+    REND_CUBE, REND_SPRITE, REND_MODEL,
 )
 
 
@@ -70,3 +70,15 @@ class ItemDrop(Entity):
         super().load(d)
         self.iid = d.get('iid', self.iid)
         self.cnt = d.get('cnt', self.cnt)
+
+
+
+
+@regentity(KIND_DUMMY, "dummy",
+    w=0.6, h=1.8, hp=20, step=ENT_STEP,
+    rend=REND_MODEL, persist=True,
+)
+class DummyEnt(Entity):
+    def tick(self, dt, w):
+        self.age += dt
+        if self.hurtt > 0.0: self.hurtt -= dt

@@ -131,6 +131,7 @@ ENT_STEP          = 0.6
 ENT_EPS           = 0.001
 ENT_STILLV        = 0.02
 ENT_EASE          = 10.0
+ENT_REACH         = 4.0
 
 
 
