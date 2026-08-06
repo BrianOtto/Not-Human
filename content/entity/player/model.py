@@ -3,8 +3,8 @@ import os
 import numpy as np
 import moderngl
 import _respath
-import shaders
 from skin import skintex
+from entity.model import EntityModel, mident, rotx, roty, rotz, trans, atpivot
 
 PART_BODY  = 0.0
 PART_HEAD  = 1.0
@@ -31,24 +31,26 @@ class PlayerModel:
         self.skin_tex = self.loadskin()
 
         verts, uvs, norms, pts = self.createmesh()
-
+        """
         nv = len(verts)
         interleaved = np.empty((nv, 9), dtype='f4')
         interleaved[:, 0:3] = verts
         interleaved[:, 3:5] = uvs
         interleaved[:, 5:8] = norms
         interleaved[:, 8]   = pts
-
+        
         self.vbo = ctx.buffer(interleaved.tobytes())
-
+        
         self.prog = ctx.program(
             vertex_shader=shaders.load("player.vert"),
             fragment_shader=shaders.load("player.frag")
         )
-
+        
         self.vao = ctx.vertex_array(self.prog, [
-            (self.vbo, '3f 2f 3f 1f', 'in_pos', 'in_uv', 'in_norm', 'in_part_id'),
+            (self.vbo, '3f 2f 3f 1f', 'in_pos', 'in_uv', 'i-n_norm', 'in_part_id'),
         ])
+        """
+        self.model = EntityModel(ctx, verts, uvs, norms, pts, tex=self.skin_tex)
 
 
     def _loadjson(self):
@@ -190,11 +192,54 @@ class PlayerModel:
         return np.array(edges), np.array(pts)
     """
 
+    # limb angles -> single mat4 p part
+    # player.vert
+    def posemats(
+        self, 
+        pitch=0.0, r_arm=0.0, l_arm=0.0, r_leg=0.0, l_leg=0.0,
+        r_arm_z=0.0, l_arm_z=0.0, headyawoff=0.0, crouch=0.0
+    ):
+        m   = mident()
+        rad = np.radians
+
+
+
+        hy  = self.LEG_H
+        sdy = self.LEG_H + self.BODY_H
+        aox = self.BODY_W / 2 + self.ARM_W / 2
+        lhw = self.LEG_W / 2
+
+        m[int(PART_R_ARM)] = atpivot(rotz(rad(r_arm_z)) @ rotx(rad(r_arm)), ( aox, sdy, 0))
+        m[int(PART_L_ARM)] = atpivot(rotz(rad(l_arm_z)) @ rotx(rad(l_arm)), (-aox, sdy, 0))
+        m[int(PART_R_LEG)] = atpivot(rotx(rad(r_leg)),  ( lhw, hy, 0))
+        m[int(PART_L_LEG)] = atpivot(rotx(rad(-l_leg)), (-lhw, hy, 0))
+        m[int(PART_HEAD)]  = atpivot(
+            roty(rad(headyawoff)) @ rotx(rad(-pitch)), (0, sdy, 0)
+        )
+
+
+        
+        if crouch > 0.01:
+            cm = atpivot(rotx(crouch * 0.5), (0, hy, 0))
+            for i in (PART_BODY, PART_HEAD, PART_R_ARM, PART_L_ARM):
+                m[int(i)] = cm @ m[int(i)]
+
+            tz = trans(0, 0, crouch * 0.1)
+            for i in (PART_R_LEG, PART_L_LEG):
+                m[int(i)] = tz @ m[int(i)]
+
+        return m
+
+
+    
+
+
     def render(
         self, mvp, pos, yaw, pitch=0.0, sun_pos=None,
         r_arm=0.0, l_arm=0.0, r_leg=0.0, l_leg=0.0, r_arm_z=0.0, l_arm_z=0.0,
         headyawoff=0.0, crouch=0.0, _hidehead=False, tex=None, hurt=0.0
     ):
+        """
         (tex or self.skin_tex).use(0)
         self.prog['mvp'].write(mvp.astype('f4').tobytes())
         self.prog['player_pos'].write(pos.astype('f4').tobytes())
@@ -210,13 +255,24 @@ class PlayerModel:
         self.prog['crouch'].value            = crouch
         self.prog['_hidehead'].value = 1.0 if _hidehead else 0.0
         self.prog['hurt'].value      = hurt
-        
-        
+
+
         if sun_pos is not None:
-            self.prog['sun_pos'].write(sun_pos.astype('f4').tobytes())
-            
-        self.prog['skin_texture'].value = 0
-        self.vao.render(moderngl.TRIANGLES)
+            self.prog['sun_pos'].write(sun_pos.astype('f4'
+        ).tobytes())
+        """
+        
+        mats = self.posemats(
+            pitch, r_arm, l_arm, r_leg, l_leg,
+            r_arm_z, l_arm_z, headyawoff, crouch,
+        )
+        self.model.render(
+            mvp, pos, yaw, mats,
+            sun_pos = sun_pos,
+            tex     = tex or self.skin_tex,
+            hurt    = hurt,
+            hide    = PART_HEAD if _hidehead else -1.0,
+        )
             
             
 
@@ -236,8 +292,8 @@ class PlayerModel:
     """
 
     def release(self):
-        for i in [self.vbo, self.skin_tex, self.vao]:
-            i.release()
+        self.model.release()
+        self.skin_tex.release()
             
             
             

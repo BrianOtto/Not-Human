@@ -21,7 +21,7 @@ class MiniInvModel:
         
         self.vao = ctx.vertex_array(self.prog, [
             (
-                pmodel.vbo, 
+                pmodel.model.vbo,
                 '3f 2f 3f 1f', 
                 'in_pos', 'in_uv', 'in_norm', 
                 'in_part_id'
