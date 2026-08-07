@@ -96,8 +96,9 @@ class EntityManager:
         p = self.world.p if self.world else None
         return [p] if p is not None and p.health > 0 else []
 
-    def hurtplayer(self, t, dmg):
+    def hurtplayer(self, t, dmg, src=None):
         t.hurt(dmg)
+        if src is not None: t.knock(motion.knockvec(src.pos, t.pos))
 
     # singleplayer, nobody to tell
     def entanim(self, e, anim):

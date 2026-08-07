@@ -5,7 +5,7 @@ import math
 
 from engine.camera import Camera
 from engine.physics import PhysicsEngine
-from config import BREAK_T, RAYCAST_DIST, HURT_T
+from config import BREAK_T, RAYCAST_DIST, HURT_T, KNOCK_T
 from world.blocks import WATER, WATER_FLOWING
 
 
@@ -21,6 +21,7 @@ class Player:
 
         self.pos = pos.copy()
         self.vel = np.array([0.0, 0.0, 0.0], dtype='f4')
+        self.knockt = 0.0   # shoved, input doesnt steer for a moment
 
         self.on_ground = False
         self.gmode  = 1
@@ -123,6 +124,14 @@ class Player:
     def sethunger(self, hg):
         self.hunger = max(0, min(self.max_hunger, int(hg)))
         return True
+
+    def knock(self, v):
+        self.vel[0] += v[0]
+        self.vel[1]  = max(float(self.vel[1]), v[1])
+        self.vel[2] += v[2]
+        self.knockt  = KNOCK_T
+        self.on_ground = False
+
 
     def hurt(self, dmg):
         if dmg <= 0: return
@@ -227,13 +236,15 @@ class Player:
 
         ispr = self.sprint and not self.crouching
         # print(md)
-        self.vel = self.physics.apply_movinput(
-            self.vel, md, self.on_ground, self.fly, ispr, dt
-        )
+        # knock
+        if self.knockt <= 0.0:
+            self.vel = self.physics.apply_movinput(
+                self.vel, md, self.on_ground, self.fly, ispr, dt
+            )
 
-        if self.crouching and not self.fly:
-            self.vel[0] *= 0.3
-            self.vel[2] *= 0.3
+            if self.crouching and not self.fly:
+                self.vel[0] *= 0.3
+                self.vel[2] *= 0.3
 
         if not self.fly:
             if keys[K_SPACE]:
@@ -398,7 +409,8 @@ class Player:
             self.fcam.pos += self.pos - self.last_pos
 
         self.anim_time += dt
-        if self.hurtt > 0: self.hurtt -= dt
+        if self.hurtt  > 0: self.hurtt  -= dt
+        if self.knockt > 0: self.knockt -= dt
 
         self._smthcrouch = 1.0 if self.crouching else 0.0
 

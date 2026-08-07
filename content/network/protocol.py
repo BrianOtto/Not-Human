@@ -15,6 +15,7 @@ class MessageType(IntEnum):
     BLOCK_DMG       = 5
     PLAYER_DMG      = 6
     PLAYER_ATTACK   = 7
+    PLAYER_KNOCK    = 8
     _SEED           = 10
     PLAYER_JOIN     = 11
     PLAYER_LEFT     = 12
@@ -219,6 +220,14 @@ def mkentattack(eid):
 
 def mkplattack(pid):
     return struct.pack('<BI', MT.PLAYER_ATTACK, pid)
+
+
+
+def mkplknock(v):
+    return struct.pack(
+        '<B3f', MT.PLAYER_KNOCK,
+        float(v[0]), float(v[1]), float(v[2])
+    )
 
 
 
@@ -481,6 +490,7 @@ class ReadMessage:
             MT.ENTITY_ANIM:    6,
             MT.ENTITY_ATTACK:  5, # I(4)
             MT.PLAYER_ATTACK:  5,
+            MT.PLAYER_KNOCK:  13, # 3f(12)
             MT.DBG_MODE:       2, # B(1)
         }
         
@@ -827,6 +837,11 @@ class ReadMessage:
 
     def parse_plattack(self, data):
         return struct.unpack('<I', data[1:])[0]
+
+
+    def parse_plknock(self, data):
+        x, y, z = struct.unpack('<3f', data[1:])
+        return np.array([x, y, z], dtype='f4')
 
 
     def parse_entdbg(self, data):

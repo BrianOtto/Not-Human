@@ -1,7 +1,7 @@
 import numpy as np
 
 from config import (
-    ENT_GRAV, ENT_TERMVEL, ENT_DRAG, ENT_FRIC, ENT_EASE, HURT_T
+    ENT_GRAV, ENT_TERMVEL, ENT_DRAG, ENT_FRIC, ENT_EASE, HURT_T, KNOCK_T
 )
 
 
@@ -124,6 +124,7 @@ class Entity:
         self.grounded = False
         self.age      = 0.0
         self.hurtt    = 0.0
+        self.knockt   = 0.0
         self.swing    = 0.0
         self.driven   = False
         self.ai       = None
@@ -167,8 +168,9 @@ class Entity:
     # bookkeeping
     def tick(self, dt, w):
         self.age += dt
-        if self.hurtt > 0.0: self.hurtt -= dt
-        if self.swing > 0.0: self.swing -= dt
+        if self.hurtt  > 0.0: self.hurtt  -= dt
+        if self.knockt > 0.0: self.knockt -= dt
+        if self.swing  > 0.0: self.swing  -= dt
 
 
 
@@ -198,6 +200,15 @@ class Entity:
         self.hurtt = HURT_T
         if self.hp <= 0: self.kill()
         return True
+
+    def knock(self, v):
+        self.vel[0] += v[0]
+        self.vel[1]  = max(float(self.vel[1]), v[1])
+        self.vel[2] += v[2]
+        self.knockt  = KNOCK_T
+        self.grounded = False
+        self.still    = False
+
 
     def kill(self):
         self.alive = False

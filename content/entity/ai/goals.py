@@ -80,7 +80,7 @@ class Melee(Goal):
             if self.cd <= 0.0:
                 self.cd = self.cool
                 w.entanim(e, ANIM_SWING)
-                w.hurtplayer(t, self.dmg)
+                w.hurtplayer(t, self.dmg, e)
 
 
         else:

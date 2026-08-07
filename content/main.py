@@ -629,6 +629,7 @@ class VoxelWorld:
             self.netclient.sendattack(e.eid)
         else:
             e.hurt(1)
+            e.knock(motion.knockvec(self.p.getpos(), e.pos))
             self.enthurtfx(e, 1)
 
         return True
@@ -1502,6 +1503,10 @@ class VoxelWorld:
             self.dmgtext.hit(hp, dmg)
 
         # server owned
+        def on_knock(v):
+            self.p.knock(v)
+
+
         def on_health(hp):
 
             d = self.p.health - hp
@@ -1535,6 +1540,7 @@ class VoxelWorld:
         self.netclient.on_disconnect  = on_disconnect
         self.netclient.on_playerhurt  = on_playerhurt
         self.netclient.on_health      = on_health
+        self.netclient.on_knock       = on_knock
         self.netclient.on_hunger      = on_hunger
         
         

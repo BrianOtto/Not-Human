@@ -84,6 +84,7 @@ class NetworkClient:
         self.on_disconnect  = None
         self.on_playerhurt  = None
         self.on_health      = None
+        self.on_knock       = None
         self.on_hunger      = None
         
 
@@ -380,6 +381,11 @@ class NetworkClient:
                         p = self.rpl.get(pid)
                         if p: p.hurtt = HURT_T
                     if p and self.on_playerhurt: self.on_playerhurt(p, dmg)
+
+
+                elif mt == MessageType.PLAYER_KNOCK:
+                    v = self.reader.parse_plknock(data)
+                    if self.on_knock: self.on_knock(v)
 
 
                 elif mt == MessageType.PLAYER_HEALTH:

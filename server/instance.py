@@ -21,6 +21,7 @@ from network.protocol import (
     mkentspawn, mkentstate, mkentgone, mkenthurt, mkentdbg, mkentanim,
     mksvchunks, mkblockbulk, mkchunk,
     mkplayerskin, validskin, mkblockdmgupd, mkplayerhurt, mkhealth, mkhunger,
+    mkplknock,
     packtnt, packitem, GONE_DEATH, GONE_RANGE, ENT_MAXBATCH,
 )
 from identity import bytetoken
@@ -1118,8 +1119,13 @@ class Instance:
         with self.plock:
             return [p for p in self.players.values() if p.conn and p.health > 0]
 
-    def hurtplayer(self, t, dmg):
+    def hurtplayer(self, t, dmg, src=None):
         self.hurtpl(t, dmg)
+        if src is not None: self.knockpl(t, src.pos)
+
+
+    def knockpl(self, t, frm):
+        self.send(t, mkplknock(motion.knockvec(frm, t.pos)))
 
 
     # we decide it happened, the clients draw it
@@ -1229,6 +1235,7 @@ class Instance:
 
         if d > ENT_REACH + 1.0: return
         self.hurtpl(t, dmg)
+        self.knockpl(t, p.pos)
 
 
     def attackent(self, p, eid, dmg=1):
@@ -1238,6 +1245,7 @@ class Instance:
             # too far
             if np.linalg.norm(e.wirepos() - p.pos) > ENT_REACH: return
             e.hurt(dmg)
+            e.knock(motion.knockvec(p.pos, e.pos))
 
         self.broadcast(mkenthurt(eid, dmg))
 

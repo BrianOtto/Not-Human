@@ -56,6 +56,7 @@ def face(e, tx, tz):
 
 
 def stop(e):
+    if e.knockt > 0.0: return
     e.vel[0] = 0.0
     e.vel[2] = 0.0
 
@@ -83,6 +84,11 @@ def moveto(e, w, tx, tz, spd, dt=0.05, stopd=0.2, guard=True):
     if d < stopd:
         stop(e)
         return True
+
+    # onhit
+    if e.knockt > 0.0:
+        turn(e, yawto(e, tx, tz), dt)
+        return False
 
     
     

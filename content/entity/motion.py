@@ -1,6 +1,6 @@
 import math
 
-from config import CHUNK_SZ, ENT_EPS, ENT_STILLV
+from config import CHUNK_SZ, ENT_EPS, ENT_STILLV, KNOCK_H, KNOCK_V
 
 flr, cl = math.floor, math.ceil
 
@@ -31,6 +31,18 @@ def boxfree(ck, x, y, z, hw, h, m=ENT_EPS):
                         z - hw < bz + 1 and z + hw > bz):
                         return False
     return True
+
+
+
+
+
+
+def knockvec(src, dst, h=KNOCK_H, v=KNOCK_V):
+    dx = float(dst[0]) - float(src[0])
+    dz = float(dst[2]) - float(src[2])
+    d  = math.sqrt(dx * dx + dz * dz)
+    if d < 1e-4: dx, dz, d = 1.0, 0.0, 1.0
+    return (dx / d * h, v, dz / d * h)
 
 
 
