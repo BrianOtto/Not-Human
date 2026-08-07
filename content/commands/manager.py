@@ -21,6 +21,19 @@ class CommandContext:
     def error(self, m): self.reply(m, (255, 150, 150))
 
 
+TNT_FUSE = 4.0
+
+
+def iscoord(s):
+    s = s.strip()
+    if s.startswith("~"): return True
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+
+
 def normitem(s):
     return "".join(j for j in s.lower() if j.isalnum())
 
@@ -106,7 +119,7 @@ class CommandManager:
 
         r.register(
             "summon", self.cmdsummon,
-            usage="/summon <entity> [x y z]",
+            usage="/summon <entity> [args] [x y z] | /summon item <id> [count]",
             desc="Spawn an entity"
         )
 
@@ -451,32 +464,79 @@ class CommandManager:
 
 
     def cmdsummon(self, ctx, args):
-        from entity.core import kindbyname, kindnames
+        from entity.core import kindbyname, kindnames, KIND_TNT, KIND_ITEM
 
-        if not args: raise CommandError("Usage: /summon <entity> [x y z]")
+        if not args:
+            raise CommandError("Usage: /summon <entity> [args] [x y z]")
 
         nm   = args[0].lower()
         kind = kindbyname(nm)
         if kind is None:
             raise CommandError(f"Unknown entity: {nm} (try {', '.join(kindnames())})")
 
-        pos = ctx.executor.pos().copy()
-        if len(args) >= 4:
-            pos = np.array([
-                parse_coord(args[1], pos[0]),
-                parse_coord(args[2], pos[1]),
-                parse_coord(args[3], pos[2]),
-            ], dtype='f4')
+        pos  = ctx.executor.pos().copy()
+        rest = args[1:]
 
-        sv = ctx.world.netserver
-        if sv:
-            eid = sv.spawnat(kind, pos)
+        
+        # kinds own args -> /summon item 5 3 ~ ~2 ~
+        if len(rest) >= 3 and all(iscoord(i) for i in rest[-3:]):
+            pos = np.array([
+                parse_coord(rest[-3], pos[0]),
+                parse_coord(rest[-2], pos[1]),
+                parse_coord(rest[-1], pos[2]),
+            ], dtype='f4')
+            rest = rest[:-3]
+
+        if kind == KIND_ITEM: eid = self.summonitem(ctx, pos, rest)
+        elif kind == KIND_TNT: eid = self.summontnt(ctx, pos, rest)
         else:
-            e   = ctx.world.entitys.spawn(kind, pos=pos)
-            eid = e.eid if e else 0
+            sv = ctx.world.netserver
+            if sv: eid = sv.spawnat(kind, pos)
+            else:
+                e   = ctx.world.entitys.spawn(kind, pos=pos)
+                eid = e.eid if e else 0
 
         if not eid: raise CommandError(f"Could not summon {nm}")
         ctx.ok(f"Summoned {nm} (#{eid})")
+
+        
+
+
+
+    
+    def summonitem(self, ctx, pos, rest):
+        from items.registry import REGISTRY
+
+
+        if not rest:
+            raise CommandError("Usage: /summon item <id> [count] [x y z]")
+
+        iid = int(rest[0]) if rest[0].lstrip("-").isdigit() else None
+        cnt = int(rest[1]) if len(rest) > 1 and rest[1].isdigit() else 1
+
+        if iid is None or not REGISTRY.exists(iid):
+            raise CommandError(f"Unknown item id: {rest[0]}")
+        if cnt <= 0: raise CommandError("Count must be > 0")
+
+        vel = np.zeros(3, dtype='f4')
+        sv  = ctx.world.netserver
+        if sv: return sv.itemdrop(iid, cnt, pos, vel)
+
+        it = ctx.world.itementys.spawn(iid, cnt, pos)
+        return it.entity_id or -1 if it else 0
+
+
+    
+
+
+    def summontnt(self, ctx, pos, rest):
+        from world.blocks import TNT
+
+        bx, by, bz = int(pos[0]), int(pos[1]), int(pos[2])
+        sv = ctx.world.netserver
+        if sv: return sv.spawnent(bx, by, bz, TNT_FUSE)
+
+        return -1 if ctx.world.blockentys.activate(bx, by, bz, TNT) else 0
 
 
     def cmdsrv(self, ctx, args):

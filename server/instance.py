@@ -12,7 +12,7 @@ from world.terrain import ChunkManager, PerlinNoise
 import config
 from config import (
     CHUNK_SZ, CHUNK_H, SV_PORT, SV_HOST, SEED,
-    SV_RATE, SV_TIMEOUT, SV_MAXONLINE, SV_MOTD, RENDER_DIST, ENT_REACH,
+    SV_RATE, SV_TIMEOUT, SV_MAXONLINE, SV_MOTD, RENDER_DIST, ENT_REACH, SV_PVP,
 )
 from network.protocol import (
     MessageType, ReadMessage,
@@ -621,6 +621,10 @@ class Instance:
                     eid = p.reader.parse_entattack(data)
                     self.attackent(p, eid)
 
+                elif mt == MessageType.PLAYER_ATTACK:
+                    tid = p.reader.parse_plattack(data)
+                    self.attackpl(p, tid)
+
                 elif mt == MessageType.DBG_MODE:
                     p.dbg = p.reader.parse_dbgmode(data)
                     
@@ -1215,6 +1219,18 @@ class Instance:
                 self.send(p, mkentgone(eid, reason))
 
 
+    def attackpl(self, p, tid, dmg=1):
+        if not SV_PVP or tid == p.pid: return
+
+        with self.plock:
+            t = self.players.get(tid)
+            if t is None or not t.conn or t.health <= 0: return
+            d = float(np.linalg.norm(t.pos - p.pos))
+
+        if d > ENT_REACH + 1.0: return
+        self.hurtpl(t, dmg)
+
+
     def attackent(self, p, eid, dmg=1):
         with self.entlock:
             e = self.ents.get(eid)
@@ -1287,7 +1303,8 @@ class Instance:
             for e in self.ents.values():
                 snap.append((
                     e.eid, e.kind, e.wirepos(), e.yaw, e.hp,
-                    float(e.vel[1]), e.still and e.snt, self.entpay(e),
+                    float(e.vel[1]), e.hyaw - e.yaw,
+                    e.still and e.snt, self.entpay(e),
                 ))
                 e.snt = e.still
 
@@ -1300,7 +1317,7 @@ class Instance:
             batch = []
             seen  = set()
 
-            for eid, kind, pos, yaw, hp, vy, quiet, pay in snap:
+            for eid, kind, pos, yaw, hp, vy, hoff, quiet, pay in snap:
                 dx = pos[0] - p.pos[0]
                 dz = pos[2] - p.pos[2]
                 if dx * dx + dz * dz > r2: continue
@@ -1313,7 +1330,7 @@ class Instance:
                     continue
 
                 if quiet: continue
-                batch.append((eid, pos, yaw, vy, 0))
+                batch.append((eid, pos, yaw, vy, hoff, 0))
 
             for eid in list(p.senteid - seen):
                 p.senteid.discard(eid)

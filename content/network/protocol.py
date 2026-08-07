@@ -14,6 +14,7 @@ class MessageType(IntEnum):
     SKIN_UPLOAD     = 4
     BLOCK_DMG       = 5
     PLAYER_DMG      = 6
+    PLAYER_ATTACK   = 7
     _SEED           = 10
     PLAYER_JOIN     = 11
     PLAYER_LEFT     = 12
@@ -177,15 +178,21 @@ def mkentspawn(eid, kind, pos, yaw=0.0, hp=0, flags=0, pay=b''):
 
 
 
-# [(eid, pos, yaw, vy, anim)] -> one packet
+# [(eid, pos, yaw, vy, hoff, anim)] -> single packet.
+# hoff = hyaw->byte
 def mkentstate(ents):
+
     d = struct.pack('<BH', MT.ENTITY_STATE, len(ents))
-    for eid, pos, yaw, vy, anim in ents:
+    for eid, pos, yaw, vy, hoff, anim in ents:
+
         d += struct.pack(
-            '<I3fffB', eid,
+            '<I3fffbB', eid,
             float(pos[0]), float(pos[1]), float(pos[2]),
-            float(yaw), float(vy), anim
+            float(yaw), float(vy),
+            max(-127, min(127, int(hoff * 127.0 / 180.0))), anim
         )
+
+
     return d
 
 
@@ -207,6 +214,11 @@ def mkentanim(eid, anim):
 
 def mkentattack(eid):
     return struct.pack('<BI', MT.ENTITY_ATTACK, eid)
+
+
+
+def mkplattack(pid):
+    return struct.pack('<BI', MT.PLAYER_ATTACK, pid)
 
 
 
@@ -468,6 +480,7 @@ class ReadMessage:
             MT.ENTITY_HURT:    6,
             MT.ENTITY_ANIM:    6,
             MT.ENTITY_ATTACK:  5, # I(4)
+            MT.PLAYER_ATTACK:  5,
             MT.DBG_MODE:       2, # B(1)
         }
         
@@ -603,7 +616,7 @@ class ReadMessage:
         if mt == MT.ENTITY_STATE:
             if not self._pull(3): return None
             cnt = struct.unpack('<H', self.buffer[1:3])[0]
-            tl  = 3 + cnt * 25
+            tl  = 3 + cnt * 26
             if not self._pull(tl): return None
             d = self.buffer[:tl]
             self.buffer = self.buffer[tl:]
@@ -780,10 +793,19 @@ class ReadMessage:
         cnt = struct.unpack('<H', data[1:3])[0]
         out = []
         off = 3
+
+
         for _ in range(cnt):
-            eid, x, y, z, yaw, vy, anim = struct.unpack('<I3fffB', data[off:off+25])
-            out.append((eid, np.array([x, y, z], dtype='f4'), yaw, vy, anim))
-            off += 25
+            eid, x, y, z, yaw, vy, hoff, anim = struct.unpack(
+                '<I3fffbB', data[off:off+26]
+            )
+
+            out.append((
+                eid, np.array([x, y, z], dtype='f4'), yaw, vy,
+                hoff * 180.0 / 127.0, anim,
+            ))
+            off += 26
+            
         return out
 
 
@@ -800,6 +822,10 @@ class ReadMessage:
 
 
     def parse_entattack(self, data):
+        return struct.unpack('<I', data[1:])[0]
+
+
+    def parse_plattack(self, data):
         return struct.unpack('<I', data[1:])[0]
 
 

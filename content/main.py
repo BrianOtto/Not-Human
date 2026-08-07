@@ -30,7 +30,8 @@ from config import (
     RENDER_DIST, SEED, SV_PORT, WATER_OFF,
     WATER_PLANE, SUN_SZ, HLIGHT_SCL, LINE_W,
     SCL_HUD, F_PLANE, RAYCAST_DIST,
-    HARDNESS, MINE_MULT, CRACK_SCL, HURT_T, POP_SCL, POP_YOFF, ENT_REACH
+    HARDNESS, MINE_MULT, CRACK_SCL, HURT_T, POP_SCL, POP_YOFF, ENT_REACH,
+    P_W, P_H
 )
 
 
@@ -577,12 +578,37 @@ class VoxelWorld:
         self.dmgtext.hit(hp, dmg, e.type.hp or 20)
 
 
+    # nearest player ahead
+    def pickplayer(self, org, dr, maxd):
+        nc = self.netclient
+        if not (nc and nc.isconn()): return None, maxd
+
+        hw = P_W * 0.5
+        best, bd = None, maxd
+
+        for _, rp in nc.remoteplayers().items():
+            box = (
+                rp.pos[0] - hw, rp.pos[1],       rp.pos[2] - hw,
+                rp.pos[0] + hw, rp.pos[1] + P_H, rp.pos[2] + hw,
+            )
+            d = motion.rayaabb(org, dr, box, maxd)
+            if d is not None and d < bd: best, bd = rp, d
+
+        return best, bd
+
+
     def onattack(self):
         org = self.p.cam.pos
         dr  = self.p.cam.front
 
-        e = self.entitys.pick(org, dr, ENT_REACH)
-        if e is None: return False
+        e  = self.entitys.pick(org, dr, ENT_REACH)
+        ed = motion.rayaabb(org, dr, e.aabb(), ENT_REACH) if e else ENT_REACH
+        rp, rd = self.pickplayer(org, dr, ENT_REACH)
+
+        if e is None and rp is None: return False
+
+        # whichever is in front
+        hd = min(ed, rd)
 
         # check block in way
         tb = self.p.targetblock(ENT_REACH)[0]
@@ -592,8 +618,11 @@ class VoxelWorld:
                 (tb[0], tb[1], tb[2], tb[0] + 1, tb[1] + 1, tb[2] + 1),
                 ENT_REACH,
             )
-            ed = motion.rayaabb(org, dr, e.aabb(), ENT_REACH)
-            if bd is not None and ed is not None and bd < ed: return False
+            if bd is not None and bd < hd: return False
+
+        if rp is not None and rd <= ed:
+            self.netclient.sendattackpl(rp.pid)
+            return True
 
         # wait for ENTITY_HURT
         if self.netclient and self.netclient.isconn():
@@ -893,7 +922,11 @@ class VoxelWorld:
                 self.renderrmtplayer(mvp, dt)
 
             if self.showborder:
-                self.entdbg.render(mvp, list(self.entitys.ents.values()))
+                self.entdbg.render(
+                    mvp, list(self.entitys.ents.values()),
+                    [i for i in self.itementys.items if i.active] +
+                    [i for i in self.blockentys.entities if i.alive],
+                )
                 self.renderenttags(mvp)
 
             self.renderpopoffs(mvp)
@@ -1352,13 +1385,14 @@ class VoxelWorld:
 
         def on_entstate(ents):
             def mv():
-                for eid, pos, yaw, vy, anim in ents:
+                for eid, pos, yaw, vy, hoff, anim in ents:
                     e = self.blockentys.byeid(eid)
                     if e is None: e = self.itementys.byeid(eid)
                     if e is None: e = self.entitys.byeid(eid)
                     if e is None: continue
                     e.setnet(pos, vy)
-                    e.yaw = yaw
+                    e.yaw  = yaw
+                    e.hyaw = yaw + hoff
 
             with self._tlock: self.ptasks.append(mv)
 

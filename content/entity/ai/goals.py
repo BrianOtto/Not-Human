@@ -71,9 +71,11 @@ class Melee(Goal):
         d = float(np.linalg.norm(t.pos - e.pos))
 
 
+        nav.look(e, t.pos[0], t.pos[2])
+
         if d <= self.reach:
             nav.stop(e)
-            nav.face(e, t.pos[0], t.pos[2])
+            nav.turn(e, nav.yawto(e, t.pos[0], t.pos[2]), dt)
 
             if self.cd <= 0.0:
                 self.cd = self.cool
@@ -179,7 +181,7 @@ class LookAt(Goal):
 
     def tick(self, e, w, dt):
         if self.tgt is not None:
-            nav.face(e, self.tgt.pos[0], self.tgt.pos[2])
+            nav.look(e, self.tgt.pos[0], self.tgt.pos[2])
 
 
 

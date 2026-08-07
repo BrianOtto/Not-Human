@@ -40,6 +40,13 @@ class ItemEntity:
         self.vel[1] = vy
 
 
+    def aabb(self, hw=DROP_SZ * 0.5):
+        return (
+            self.pos[0] - hw, self.pos[1] - hw, self.pos[2] - hw,
+            self.pos[0] + hw, self.pos[1] + hw, self.pos[2] + hw,
+        )
+
+
     def dbgtag(self):
         who = f"#{self.entity_id}" if self.entity_id else "local"
         gr  = "grnd" if self.grounded else "air"

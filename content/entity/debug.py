@@ -46,8 +46,12 @@ class EntityDebug:
 
 
 
-    def build(self, ents):
+    def build(self, ents, simple=()):
         box, look, path = [], [], []
+
+        
+        for i in simple:
+            box.extend(boxlines(i.aabb()))
 
 
 
@@ -85,11 +89,13 @@ class EntityDebug:
             #path.append((float(e.pos[0]), fy, float(e.pos[2])))
             #path.append((tx, fy, tz))
 
+            """
             tx, ty, tz = prev
             path.extend([
                 (tx - 0.3, ty, tz), (tx + 0.3, ty, tz),
                 (tx, ty, tz - 0.3), (tx, ty, tz + 0.3),
             ])
+            """
 
 
         return box, look, path
@@ -97,11 +103,14 @@ class EntityDebug:
     
 
 
-    def render(self, mvp, ents):
-        ents = [i for i in ents if i.type is not None]
-        if not ents: return
+    def render(self, mvp, ents, simple=()):
 
-        box, look, path = self.build(ents)
+
+        
+        ents = [i for i in ents if i.type is not None]
+        if not ents and not simple: return
+
+        box, look, path = self.build(ents, simple)
         allv = box + look + path
         if not allv: return
         if len(allv) > MAXV: allv = allv[:MAXV]

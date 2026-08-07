@@ -9,19 +9,48 @@ flr = math.floor
 LOOKAH   = 0.55   # test for walls ahead
 STEPUP   = 1.05
 MAXDROP  = 3
+TURNRATE = 400.0  # body degs
+HEADMAX  = 60.0
 
 
 
 
 
+
+
+def wrap(a):
+    return (a + 180.0) % 360.0 - 180.0
+
+
+def yawto(e, tx, tz):
+    #conv: front.x = cos(yaw), front.z = sin(yaw)
+    return math.degrees(math.atan2(tz - e.pos[2], tx - e.pos[0]))
+
+
+
+
+def look(e, tx, tz):
+    dx = tx - e.pos[0]
+    dz = tz - e.pos[2]
+    if abs(dx) < 1e-6 and abs(dz) < 1e-6: return
+    e.hyaw = yawto(e, tx, tz)
+
+
+
+
+
+def turn(e, want, dt, rate=TURNRATE):
+    d = wrap(want - e.yaw)
+    m = rate * dt
+    e.yaw = wrap(e.yaw + (d if abs(d) <= m else math.copysign(m, d)))
 
 
 def face(e, tx, tz):
     dx = tx - e.pos[0]
     dz = tz - e.pos[2]
     if abs(dx) < 1e-6 and abs(dz) < 1e-6: return
-    #conv: front.x = cos(yaw), front.z = sin(yaw)
-    e.yaw = math.degrees(math.atan2(dz, dx))
+    e.yaw  = yawto(e, tx, tz)
+    e.hyaw = e.yaw
 
 
 
@@ -46,7 +75,7 @@ def dropsafe(ck, x, y, z, maxd=MAXDROP):
 
 
 
-def moveto(e, w, tx, tz, spd, stopd=0.2, guard=True):
+def moveto(e, w, tx, tz, spd, dt=0.05, stopd=0.2, guard=True):
     dx = tx - e.pos[0]
     dz = tz - e.pos[2]
     d  = math.sqrt(dx * dx + dz * dz)
@@ -55,16 +84,18 @@ def moveto(e, w, tx, tz, spd, stopd=0.2, guard=True):
         stop(e)
         return True
 
-
     
+    
+    turn(e, yawto(e, tx, tz), dt)
 
-    nx, nz = dx / d, dz / d
-    face(e, tx, tz)
+    yr = math.radians(e.yaw)
+    nx, nz = math.cos(yr), math.sin(yr)
 
     ck = w.chunker
     t  = e.type
     px = e.pos[0] + nx * LOOKAH
     pz = e.pos[2] + nz * LOOKAH
+
 
 
 
@@ -77,15 +108,20 @@ def moveto(e, w, tx, tz, spd, stopd=0.2, guard=True):
         elif guard:
             stop(e)
             return False
+        
 
-    #already proved route
+    # already proved path
     elif guard and e.grounded and not dropsafe(ck, px, e.pos[1], pz):
         stop(e)
         return False
-    
 
-    e.vel[0] = nx * spd
-    e.vel[2] = nz * spd
+
+    #ease
+    al = math.cos(math.radians(wrap(yawto(e, tx, tz) - e.yaw)))
+    sc = max(0.0, al)
+
+    e.vel[0] = nx * spd * sc
+    e.vel[2] = nz * spd * sc
     e.driven = True
     e.navtgt = (tx, e.pos[1], tz)
     return False
@@ -99,15 +135,34 @@ def moveto(e, w, tx, tz, spd, stopd=0.2, guard=True):
 
 
 
-
-
-
-
-
-
-
 REPATH  = 0.5 # secs between a* runs
 WPNEAR  = 0.45
+
+
+
+
+
+def clearline(ck, e, wp, step=0.4):
+    t  = e.type
+    dx = wp[0] - e.pos[0]
+    dz = wp[2] - e.pos[2]
+    d  = math.sqrt(dx * dx + dz * dz)
+    if d < 1e-4: return True
+
+
+
+    n = int(d / step) + 1
+    for i in range(1, n + 1):
+        f = min(1.0, (i * step) / d)
+        x = e.pos[0] + dx * f
+        z = e.pos[2] + dz * f
+        if not motion.boxfree(ck, x, e.pos[1], z, t.hw, t.h): return False
+        if not dropsafe(ck, x, e.pos[1], z): return False
+
+    return True
+
+
+
 
 
 
@@ -139,7 +194,7 @@ def pathto(e, w, tx, ty, tz, spd, dt, stopd=0.6):
 
 
     if not e.path:
-        return moveto(e, w, tx, tz, spd)
+        return moveto(e, w, tx, tz, spd, dt)
 
     # eat waypoints
     while e.pathi < len(e.path):
@@ -157,13 +212,21 @@ def pathto(e, w, tx, ty, tz, spd, dt, stopd=0.6):
 
     if e.pathi >= len(e.path):
         e.path = []
-        return moveto(e, w, tx, tz, spd)
+        return moveto(e, w, tx, tz, spd, dt)
 
-    wp = e.path[e.pathi]
+    
+    
+    j   = e.pathi
+    lim = min(e.pathi + 5, len(e.path))
+    for k in range(e.pathi + 1, lim):
+        if abs(e.path[k][1] - e.pos[1]) > 0.6: break
+        if clearline(ck, e, e.path[k]): j = k
+
+    wp = e.path[j]
 
     # waypoint steup->hop
-    if e.grounded and wp[1] > e.pos[1] + 0.4: e.vel[1] = JUMP_V
+    if e.grounded and e.path[e.pathi][1] > e.pos[1] + 0.4: e.vel[1] = JUMP_V
 
-    moveto(e, w, wp[0], wp[2], spd, stopd=0.05, guard=False)
+    moveto(e, w, wp[0], wp[2], spd, dt, stopd=0.05, guard=False)
     e.navtgt = (tx, ty, tz)
     return False

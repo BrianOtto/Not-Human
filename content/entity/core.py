@@ -112,7 +112,8 @@ class Entity:
         self.eid   = eid # 0 = local only
         self.pos   = np.zeros(3, dtype='f4') if pos is None else np.array(pos, dtype='f4')
         self.vel   = np.zeros(3, dtype='f4')
-        self.yaw   = yaw
+        self.yaw   = yaw # body
+        self.hyaw  = yaw # head
         self.pitch = pitch
 
         t = enttype(self.kind)

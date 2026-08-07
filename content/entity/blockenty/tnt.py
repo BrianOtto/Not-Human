@@ -56,12 +56,23 @@ class TNTEntity(BlockEntity):
         self._uvs         = None
 
 
+    # pos[1] = bot
+    def aabb(self):
+        return (
+            self.pos[0] - 0.5, self.pos[1],       self.pos[2] - 0.5,
+            self.pos[0] + 0.5, self.pos[1] + 1.0, self.pos[2] + 0.5,
+        )
+
+
     def dbgtag(self):
         who = f"#{self.eid}" if self.eid is not None else "local"
         og  = "grnd" if self._on_ground else "air"
         d   = float(np.linalg.norm(self.tpos - self.pos)) if self.eid is not None else 0.0
-        return (f"{who} tnt y{self.pos[1]:.1f} vy{self.vy:.1f} "
-                f"f{max(self.fuse, 0.0):.1f} {og} d{d:.2f}")
+        
+        return (
+            f"{who} tnt y{self.pos[1]:.1f} vy{self.vy:.1f} "
+            f"f{max(self.fuse, 0.0):.1f} {og} d{d:.2f}"
+        )
 
 
     def setnet(self, pos, vy):

@@ -6,6 +6,7 @@ import _respath
 from skin import skintex
 from config import HURT_T
 from entity import motion
+from entity.ai import nav
 from entity.core import REND_MODEL, mkentity
 from entity.store import entck, saveents, loadents
 import entity.kinds  # noqa: F401
@@ -165,8 +166,12 @@ class EntityManager:
             ra += sw
             la += sw
 
+        # head twist
+        hoff = max(-nav.HEADMAX, min(nav.HEADMAX, nav.wrap(e.hyaw - e.yaw)))
+
         return self.pmodel.posemats(
-            pitch=e.pitch, r_arm=ra, l_arm=la, r_leg=rl, l_leg=ll
+            pitch=e.pitch, r_arm=ra, l_arm=la, r_leg=rl, l_leg=ll,
+            headyawoff=hoff,
         )
 
 

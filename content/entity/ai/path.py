@@ -10,8 +10,10 @@ MAXRANGE = 24
 STEPCOST = 1.0
 JUMPCOST = 1.4
 DROPCOST = 0.35   # p block fallen
+DIAGCOST = 1.414
 
-DIRS = ((1, 0), (-1, 0), (0, 1), (0, -1))
+DIRS  = ((1, 0), (-1, 0), (0, 1), (0, -1))
+DIAGS = ((1, 1), (1, -1), (-1, 1), (-1, -1))
 
 
 
@@ -61,13 +63,36 @@ def steps(ck, n, hb, out=[]):
                 break
             if ck.issolid(nx, ny, nz): break
 
+
+
+
+
+
+
+    # flat diagonals
+    
+    for dx, dz in DIAGS:
+        nx, nz = x + dx, z + dz
+        if not standable(ck, nx, y, nz, hb):   continue
+        if not clearcol(ck, nx, y, z, hb):     continue
+        if not clearcol(ck, x, y, nz, hb):     continue
+        out.append(((nx, y, nz), DIAGCOST))
+
     return out
 
 
 
 
+
+
+
+
+
 def hcost(a, b):
-    return (abs(a[0] - b[0]) + abs(a[2] - b[2])) * 1.001 + abs(a[1] - b[1]) * 0.5
+    dx = abs(a[0] - b[0])
+    dz = abs(a[2] - b[2])
+    d  = (dx + dz) + (DIAGCOST - 2.0) * min(dx, dz)
+    return d * 1.001 + abs(a[1] - b[1]) * 0.5
 
 
 

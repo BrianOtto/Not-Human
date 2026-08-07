@@ -7,6 +7,7 @@ from network.protocol import (
     MessageType, ReadMessage, validskin,
     mkjoin, mkposupd, mkblockchg, mkchat, mkitemdrop, mkitempick, mksvrq,
     mkchunkreq, mkskin, mkblockdmg, mkplayerdmg, mkentattack, mkdbgmode,
+    mkplattack,
 )
 from config import SV_PORT, SV_TIMEOUT, CL_UPD_INT, HURT_T
 from identity import whoami, get_tokenbytes
@@ -247,6 +248,10 @@ class NetworkClient:
 
     def sendattack(self, eid):
         self.wsend(mkentattack(eid))
+
+
+    def sendattackpl(self, pid):
+        self.wsend(mkplattack(pid))
 
 
     def senddbgmode(self, on):

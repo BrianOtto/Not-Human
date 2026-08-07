@@ -62,6 +62,7 @@ SV_RATE           = 30           # tick rate
 SV_MAXONLINE      = 20
 SV_MOTD           = "A Kyklophobia Server\nRunning v{VERSION}, {PLAYER_COUNT} online"
 SV_TIMEOUT        = 10.0
+SV_PVP            = True
 CL_UPD_INT        = 0.033
 
 
