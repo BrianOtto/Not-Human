@@ -20,7 +20,7 @@ from world.renderers.registry import (
 )
 from world.generate import _generate
 from world.mesh import (
-    bake_skylight, build_meshjit,
+    bakelight, build_meshjit, BLOCK_EMIT,
     BUILD_FACE_V, BUILD_FACE_N, BUILD_FACE_UV, MESH_GRASS_V,
 )
 
@@ -68,7 +68,8 @@ class Chunk:
     def __init__(self, x, z, world):
         self.x, self.z, self.world = x, z, world
         self.voxels = np.zeros((CHUNK_SZ, CHUNK_H, CHUNK_SZ), dtype=np.uint16)
-        self.light = np.zeros((CHUNK_SZ, CHUNK_H, CHUNK_SZ), dtype=np.uint8)
+        self.light  = np.zeros((CHUNK_SZ, CHUNK_H, CHUNK_SZ), dtype=np.uint8)
+        self.blight = np.zeros((CHUNK_SZ, CHUNK_H, CHUNK_SZ), dtype=np.uint8)
         self.mesh_built = False
         self.mesh_pending = False  # prevent re-queueing while mesh is being built
         self.gen_ready = False
@@ -179,14 +180,19 @@ class Chunk:
         
         def get_neighbor_light(dx, dz):
             c = chunks.get((self.x + dx, self.z + dz))
-            return c.light if c and c.gen_ready else EMPTY_LIGHT
+            return (c.light, c.blight) if c and c.gen_ready else (EMPTY_LIGHT, EMPTY_LIGHT)
 
-        l_nx = get_neighbor_light(-1, 0)
-        l_px = get_neighbor_light(1, 0)
-        l_nz = get_neighbor_light(0, -1)
-        l_pz = get_neighbor_light(0, 1)
+        l_nx, b_nx = get_neighbor_light(-1, 0)
+        l_px, b_px = get_neighbor_light(1, 0)
+        l_nz, b_nz = get_neighbor_light(0, -1)
+        l_pz, b_pz = get_neighbor_light(0, 1)
 
-        bake_skylight(self.voxels, self.light, l_nx, l_px, l_nz, l_pz)
+        bakelight(
+            self.voxels, self.light, self.blight,
+            l_nx, l_px, l_nz, l_pz,
+            b_nx, b_px, b_nz, b_pz,
+            BLOCK_EMIT
+        )
         self.light_dirty = False
         
         
@@ -216,8 +222,8 @@ class Chunk:
 
         def get_neighbor_light(dx, dz):
             c = chunks.get((self.x + dx, self.z + dz))
-            return c.light if c and c.gen_ready else self.light
-            
+            return (c.light, c.blight) if c and c.gen_ready else (self.light, self.blight)
+
             
 
         if self.x == 0 and self.z == 0 and hasattr(self.world.chunker, 'ui') and self.world.chunker.ui:
@@ -247,15 +253,20 @@ class Chunk:
 
         v_nx, v_px = get_neighbor_voxels(-1, 0), get_neighbor_voxels(1, 0)
         v_nz, v_pz = get_neighbor_voxels(0, -1), get_neighbor_voxels(0, 1)
-        l_nx, l_px = get_neighbor_light(-1, 0),  get_neighbor_light(1, 0)
-        l_nz, l_pz = get_neighbor_light(0, -1),  get_neighbor_light(0, 1)
+        l_nx, b_nx = get_neighbor_light(-1, 0)
+        l_px, b_px = get_neighbor_light(1, 0)
+        l_nz, b_nz = get_neighbor_light(0, -1)
+        l_pz, b_pz = get_neighbor_light(0, 1)
         
         
         
 
         vertices, tverts = build_meshjit(
             self.voxels, float(self.offset_x), float(self.offset_z), 
-            v_nx, v_px, v_nz, v_pz, self.light, l_nx, l_px, l_nz, l_pz, 
+            v_nx, v_px, v_nz, v_pz,
+            self.light, l_nx, l_px, l_nz, l_pz,
+            self.blight, b_nx, b_px, b_nz, b_pz,
+            
             UV_ARRAY, UV_W, UV_H, BLOCK_CUSTOM_FACES, 
             BLOCK_MODE_RENDER, NUM_ELEMENTS, BLOCK_ELEMS, BLOCK_MODE_UV, 
             CULL_TOPBOT, BUILD_FACE_V, BUILD_FACE_N, BUILD_FACE_UV, 
@@ -284,7 +295,7 @@ class Chunk:
             nvc  = count
             nvbo = self.world.ctx.buffer(data)
             nvao = self.world.ctx.vertex_array(
-                self.world.prog, [(nvbo, '3f 3f 1f 2f', 'in_pos', 'in_norm', 'in_ao', 'in_uv')]
+                self.world.prog, [(nvbo, '3f 3f 2f', 'in_pos', 'in_lit', 'in_uv')]
             )
             
 
@@ -292,7 +303,7 @@ class Chunk:
             ntvc  = trans_count
             ntvbo = self.world.ctx.buffer(trans_data)
             ntvao = self.world.ctx.vertex_array(
-                self.world.prog, [(ntvbo, '3f 3f 1f 2f', 'in_pos', 'in_norm', 'in_ao', 'in_uv')]
+                self.world.prog, [(ntvbo, '3f 3f 2f', 'in_pos', 'in_lit', 'in_uv')]
             )
             
             

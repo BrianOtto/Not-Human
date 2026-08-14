@@ -1,14 +1,15 @@
 #version 330
-in vec3 v_normal;
-in float v_ao;
+//in float v_ao
+in vec3 v_lit;
 in vec2 v_uv;
-in float v_height;
-in vec3 v_world_pos;
+//in float v_height;
+//in vec3 v_world_pos;
 uniform sampler2D texture0;
 uniform sampler2D clrmap_grass;
 uniform sampler2D clrmap_folage;
 uniform sampler2D meta_atlas;
-uniform vec3 sun_pos;
+uniform sampler2D lightmap;
+uniform vec3 fog_col;
 uniform float chunk_fade;
 
 // anim
@@ -18,7 +19,7 @@ uniform vec2 meta_szatlas;
 
 out vec4 f_color;
 
-// val noise -- 2x bilinear hash, nothing fancy
+
 float hash(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
     p += dot(p, p + 45.32);
@@ -28,7 +29,7 @@ float hash(vec2 p) {
 float noise(vec2 p) {
     vec2 i = floor(p);
     vec2 f = fract(p);
-    f = f * f * (3.0 - 2.0 * f);  // smoothstep
+    f = f * f * (3.0 - 2.0 * f);
     float a = hash(i);
     float b = hash(i + vec2(1.0, 0.0));
     float c = hash(i + vec2(0.0, 1.0));
@@ -36,21 +37,21 @@ float noise(vec2 p) {
     return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
-// mc face darkening: top=1 bot=0.5 sides 0.6-0.8
-float faceshade(vec3 n) {
-    n = normalize(n);
-    if (n.y >  0.5) return 1.0;
-    if (n.y < -0.5) return 0.5;
-    if (abs(n.z) > 0.5) return 0.8;
-    if (abs(n.x) > 0.5) return 0.6;
-    return 0.8;
+
+
+
+
+vec3 lmap(vec2 bs) {
+    return texture(lightmap, (bs + 0.5) / 16.0).rgb;
 }
 
-// diffuse: n·sd remapped [0.3, 1.0]
+/*
+// diffuse: n*sd remapped [0.3, 1.0]
 float sunlight(vec3 n, vec3 sd) {
     float d = dot(normalize(n), normalize(sd)) * 0.35 + 0.65;
     return clamp(d, 0.3, 1.0);
 }
+*/
 
 void main() {
     // anim: src uv -> meta atlas uv (adat = [src_uv, dst_uv])
@@ -78,7 +79,10 @@ void main() {
     vec2 uv_g = vec2(0.3, 0.35);
     vec2 uv_f = vec2(0.4, 0.35);
 
-    // atlas row ranges -- where the biome-tinted tiles live
+    
+
+
+
     float r8b  = 1.0 - 9.0  * uv_h,  r8t  = 1.0 - 8.0  * uv_h;
     float r10b = 1.0 - 11.0 * uv_h,  r10t = 1.0 - 10.0 * uv_h;
     float r16b = 1.0 - 17.0 * uv_h,  r16t = 1.0 - 16.0 * uv_h;
@@ -101,19 +105,17 @@ void main() {
         tc.rgb *= texture(clrmap_folage, uv_f).rgb;
     }
 
-    // rs tint -- cols 4-6 row 18
+    
+
     if (v_uv.x >= 4.0*uv_w && v_uv.x < 7.0*uv_w && v_uv.y < uv_h)
         tc.rgb *= vec3(1.0, 0.2, 0.2);
 
-    // lit = ao * face(n) * sun(n,sd)  -- all in [0,1]
-    float lv  = clamp(v_ao, 0.0, 1.0);
-    float amb = 0.08 + lv * 0.92;
-    float lit = faceshade(v_normal) * sunlight(v_normal, sun_pos) * amb;
+    
+    
+    vec3 col = tc.rgb * lmap(v_lit.xy) * v_lit.z;
 
-    vec3 col = tc.rgb * lit;
-
-    // linear fog -> sky color mix
-    vec3  sky  = vec3(0.529, 0.808, 0.922);
+    // linear fog -> sky clr mix
+    vec3  sky  = fog_col;
     float dist = gl_FragCoord.z / gl_FragCoord.w;
     float ff   = clamp((250.0 - dist) / 150.0, 0.0, 1.0);
     col = mix(sky, col, ff);

@@ -67,7 +67,7 @@ from world.noise import (
 )
 from world.generate import _generate
 from world.mesh import (
-    bake_skylight, build_meshjit,
+    bakelight, build_meshjit, BLOCK_EMIT,
     is_localsolid, get_localblock, is_localwater,
     _is_lightaware, _emitface, _emitgrass,
     
@@ -106,7 +106,8 @@ def warmup_jit_functions():
     
     dbiomes = np.zeros((CHUNK_SZ, CHUNK_SZ), dtype=np.int8)
     _generate(dvox, 0.0, 0.0, p, dbiomes)
-    bake_skylight(dvox, dlit, dlit, dlit, dlit, dlit)
+    dblit = np.zeros((CHUNK_SZ, CHUNK_H, CHUNK_SZ), dtype=np.uint8)
+    bakelight(dvox, dlit, dblit, dlit, dlit, dlit, dlit, dblit, dblit, dblit, dblit, BLOCK_EMIT)
     
     
     dn = np.zeros((CHUNK_SZ, CHUNK_H, CHUNK_SZ), dtype=np.uint16)
@@ -115,6 +116,7 @@ def warmup_jit_functions():
         0.0, 0.0,
         dn, dn, dn, dn,
         dlit, dlit, dlit, dlit, dlit,
+        dblit, dblit, dblit, dblit, dblit,
         UV_ARRAY, UV_W, UV_H,
         BLOCK_CUSTOM_FACES, BLOCK_MODE_RENDER,
         NUM_ELEMENTS, BLOCK_ELEMS,
@@ -137,17 +139,18 @@ def warmup_jit_functions():
     _ = _is_lightaware(0)
 
     dverts = np.empty(350, dtype=np.float32)
+    dl4    = np.ones((4, 3), dtype=np.float32)
     _ = _emitface(
         dverts,
         0, 0.0, 0.0, 0.0, 0.0, 0.0,
-        0, 1.0, 0.0, 0.0, 0.0625, 0.0625,
+        0, dl4, 0.0, 0.0, 0.0625, 0.0625,
         FACE_VERTS, FACE_NORMALS, FACE_UV_OFFSETS
     )
         
     _ = _emitgrass(
         dverts,
         0, 0.0, 0.0, 0.0, 0.0, 0.0,
-        1.0, 0.0, 0.0, 0.0625, 0.0625, 
+        dl4, 0.0, 0.0, 0.0625, 0.0625,
         GRASS_VERTS
     )
     
@@ -354,10 +357,10 @@ class ChunkManager:
                     vb, vc = None, 0
                     tvb, tvc = None, 0
                     if verts is not None and len(verts) > 0:
-                        vb, vc = verts.tobytes(), len(verts) // 9
+                        vb, vc = verts.tobytes(), len(verts) // 8
                         
                     if trans_verts is not None and len(trans_verts) > 0:
-                        tvb, tvc = trans_verts.tobytes(), len(trans_verts) // 9
+                        tvb, tvc = trans_verts.tobytes(), len(trans_verts) // 8
                         
                         
                         
@@ -641,14 +644,18 @@ class ChunkManager:
     
     
     def getlight(self, x, y, z):
-        if y < 0 or y >= CHUNK_H: return 0
+
+        if y < 0 or y >= CHUNK_H: return 0, 0
         c = self.chunks.get((x // CHUNK_SZ, z // CHUNK_SZ))
-        if not c or not c.gen_ready: return 0
+        
+        if not c or not c.gen_ready: return 0, 0
         lx, lz = x - c.offset_x, z - c.offset_z
+
+
         if 0 <= lx < CHUNK_SZ and 0 <= lz < CHUNK_SZ:
-            return int(c.light[lx, y, lz])
-            
-        return 0
+            return int(c.light[lx, y, lz]), int(c.blight[lx, y, lz])
+
+        return 0, 0
     
     
     
@@ -659,9 +666,9 @@ class ChunkManager:
         vb, vc = None, 0
         tvb, tvc = None, 0
         if verts is not None and len(verts) > 0:
-            vb, vc = verts.tobytes(), len(verts) // 9
+            vb, vc = verts.tobytes(), len(verts) // 8
         if trans_verts is not None and len(trans_verts) > 0:
-            tvb, tvc = trans_verts.tobytes(), len(trans_verts) // 9
+            tvb, tvc = trans_verts.tobytes(), len(trans_verts) // 8
             
         chunk.upload_mesh(vb, vc, tvb, tvc)
     

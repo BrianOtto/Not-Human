@@ -9,7 +9,7 @@ void main() {
     if (tex.a < 0.1) discard;
 
     vec3 n = normalize(v_normal);
-    // face shade: n·y -> br, mc-style
+    // face shade: n*y -> br, mc-style
     float br;
     if      (n.y >  0.5)      br = 1.0;
     else if (n.y < -0.5)      br = 0.5;

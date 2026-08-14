@@ -14,7 +14,7 @@ void main() {
     if (tex.a < 0.1) discard;
 
     vec3 n = normalize(v_normal);
-    // face shade: n·y -> brightness, mc-style
+    // shade n*y -> bright
     float br;
     if      (n.y >  0.5)      br = 1.0;
     else if (n.y < -0.5)      br = 0.5;
@@ -22,14 +22,14 @@ void main() {
     else if (abs(n.x) > 0.5)  br = 0.6;
     else                      br = 0.8;
 
-    // diffuse: n*sd remapped [0.4, 1.0]
+    // diff n*sd remapped [0.4, 1.0]
     vec3 sd = normalize(sun_pos);
     float sl = clamp(dot(n, sd) * 0.4 + 0.6, 0.4, 1.0);
 
     vec3 color = tex.rgb * (br * sl);
     color = mix(color, vec3(1.0, 0.0, 0.0), hurt * 0.5);
 
-    // linear fog -> sky color mix
+    // linear fog -> sky clr mix
     float dist = gl_FragCoord.z / gl_FragCoord.w;
     float f0 = 100.0, f1 = 250.0;
     float ff = clamp((f1 - dist) / (f1 - f0), 0.0, 1.0);

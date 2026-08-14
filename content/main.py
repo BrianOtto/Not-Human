@@ -45,6 +45,9 @@ from ui.inv import Inventory
 from engine.particle import ParticleManager
 from engine.sound import SoundManager, SND_HURT
 from engine.dmgtext import DamageText
+from engine.lightmap import Lightmap, skydarken, skybright
+
+SKY_COL = np.array([0.5, 0.7, 1.0], dtype='f4')
 from entity.item.item import ItemEntityManager
 from entity.player._held import HeldItemRenderer
 import _respath
@@ -94,6 +97,7 @@ class VoxelWorld:
         
         
         self.sun_angle = 60.0
+        self.skycol    = SKY_COL.copy()
         self.sun_dir = np.array([0.5, 1.0, 0.1], dtype='f4')
         self.sun_dir = self.sun_dir / np.linalg.norm(self.sun_dir)
         self.sun_pos = np.array([0.0, 0.0, 0.0], dtype='f4')
@@ -174,6 +178,10 @@ class VoxelWorld:
         self.text_meta.use(3)
         self.prog['meta_atlas'].value = 3
         self.meta_sz = anims.szatlas()
+
+        self.lightmap = Lightmap(self.ctx)
+        self.lightmap.use(4)
+        self.prog['lightmap'].value = 4
         self.prog['chunk_fade'].value = 1.0
         
         
@@ -774,7 +782,15 @@ class VoxelWorld:
             sd[0] /= norm; sd[1] /= norm; sd[2] /= norm
             self.sun_dir = sd
             self.sun_pos = (cpos + sd * min(0.8 * far, 300.0)).astype('f4')
-            self.prog['sun_pos'].write(sd.tobytes())
+
+            # sun_angle 90 = noon
+            td = ((self.sun_angle - 90.0) / 360.0) % 1.0
+            self.lightmap.update(dt, skydarken(td))
+            self.lightmap.use(4)
+
+            self.skycol = SKY_COL * skybright(td)
+            self.prog['fog_col'].write(self.skycol.tobytes())
+
             mvpb         = mvp.astype('f4').tobytes()
             
             anims = getanims()
@@ -820,12 +836,12 @@ class VoxelWorld:
             
             if self.gamma_shader.enabled:
                 self.gamma_shader.fbo.use()
-                self.gamma_shader.fbo.clear(0.5, 0.7, 1.0)
+                self.gamma_shader.fbo.clear(*self.skycol)
 
             else:
                 self.ctx.screen.use()
                 self.ctx.viewport = (0, 0, self._scrw, self._scrh)
-                self.ctx.clear(0.5, 0.7, 1.0)
+                self.ctx.clear(*self.skycol)
                 
                 
                 
@@ -1014,9 +1030,9 @@ class VoxelWorld:
             if targetb:
                 look = f"{bn} {{st:{state}, pm:{pmade}}} ({tx}, {ty}, {tz})"
             
-            ll = 0
+            ll, lb = 0, 0
             if targetb and targetf:
-                ll = self.chunker.getlight(
+                ll, lb = self.chunker.getlight(
                     targetb[0]+targetf[0], 
                     targetb[1]+targetf[1], 
                     targetb[2]+targetf[2]
@@ -1045,7 +1061,7 @@ class VoxelWorld:
                      f"Chunk: ({chx}, {chz})",
                      f"Biome: {bnm}",
                      f"Looking at: {look}", 
-                     f"Light: {ll}", "",
+                     f"Light: {max(ll, lb)} (sky {ll}, blk {lb})", "",
                      f"Velocity: ({vx:.2f}, {vy:.2f}, {vz:.2f})",
                      f"Mode: {flight}",
                      f"Gamemode: {self.p.gmode}",

@@ -1,7 +1,7 @@
 #version 330
 
 uniform sampler2D texture0;
-uniform vec2 uv0;    // atlas cell of the destroy_stage were on
+uniform vec2 uv0;
 uniform vec2 uvsz;
 
 in vec2 v_uv;

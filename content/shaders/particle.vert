@@ -16,8 +16,8 @@ out vec3 v_tint;
 
 void main() {
     vec3 world_pos = in_pos
-                   + cam_r * in_offset.x * in_size
-                   + cam_u * in_offset.y * in_size;
+        + cam_r * in_offset.x * in_size
+        + cam_u * in_offset.y * in_size;
 
     gl_Position = mvp * vec4(world_pos, 1.0);
     v_uv = in_uv;

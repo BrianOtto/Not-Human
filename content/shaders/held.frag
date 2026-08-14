@@ -18,7 +18,7 @@ void main() {
     vec3 n = normalize(v_normal);
     if (!gl_FrontFacing) n = -n;
 
-    // diff: n·sun_dir -> lit [0.4, 1.0]
+    // diff: n*sun_dir -> lit [0.4, 1.0]
     float diff = max(dot(n, normalize(sun_dir)), 0.0);
     float lit  = 0.4 + diff * 0.6;
 
