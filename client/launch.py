@@ -119,6 +119,15 @@ class Launcher:
 
 
     def buildbg(self):
+        # load the space background
+        self.bg  = pygame.image.load(os.path.join(UI_DIR, "space.png")).convert_alpha()
+        self.bg_width = self.bg.get_width();
+        self.bg_scroll = 0
+
+        # load the terrain over the space background
+        self.terrain  = pygame.image.load(os.path.join(UI_DIR, "terrain.png")).convert_alpha()
+
+        """
         src  = pygame.image.load(os.path.join(UI_DIR, "bg.png")).convert()
         ts   = 4 * GS * 16
         tile = pygame.transform.scale(src, (ts, ts))
@@ -131,6 +140,7 @@ class Launcher:
         for x in range(0, WIN_W, ts):
             for y in range(0, WIN_H, ts):
                 self.bg.blit(tile, (x, y))
+        """
 
     """
     def buildbg(self):
@@ -138,13 +148,31 @@ class Launcher:
         self.bg = pygame.transform.scale(src, (WIN_W, WIN_H))
     """
 
+    def drawbg(self):
+        # scroll the space background left by 25% on every tick
+        self.bg_scroll -= 0.25
+
+        # append the space background 4 times for seamless scrolling
+        for x in range(4) :
+            # scroll through space by adjusting X
+            xNew = (x * self.bg_width) + self.bg_scroll
+
+            # wrap around to the beginning
+            if abs(self.bg_scroll) >= (2 * self.bg_width):
+                self.bg_scroll = 0
+
+            # draw the space
+            self.screen.blit(self.bg, (xNew, 0))
+
+        # draw the terrain
+        self.screen.blit(self.terrain, (0, 325))
 
     def setscreen(self, s):
         self._screen = s
 
 
     def drawloading(self, log):
-        self.screen.blit(self.bg, (0, 0))
+        self.drawbg()
         log.draw(self.screen)
         pygame.display.flip()
         pygame.event.pump()
@@ -303,7 +331,7 @@ class Launcher:
             # print(mx, my)
             self._screen.update(mx, my)
             self._screen.onevent(events)
-            self.screen.blit(self.bg, (0, 0))
+            self.drawbg()
             self._screen.draw(self.screen)
             
             pygame.display.flip()

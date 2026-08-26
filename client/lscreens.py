@@ -9,7 +9,7 @@ from lconst import (
     PING_ANIM_X, PING_ANIM_W, PING_ANIM_H, PING_ANIM_Y,
     RESOURCE_DIR, UI_DIR,
     SPLASH_TEXTS, __VERSION__,
-    WHITE, GRAY, YELLOW, RED, GREEN
+    WHITE, GRAY, YELLOW, RED, GREEN, BLACK
 )
 
 from lwidgets import Button, TextInput, ListWidget, nine_slice
@@ -70,12 +70,11 @@ class MenuScreen(Screen):
         self._splash_start = time.time()
 
         cx = GUI_W // 2; W = 200
-        self.btn1   = self.btn_gui(cx - W//2, 140, W, "Singleplayer")
-        self.btn2   = self.btn_gui(cx - W//2, 163, W, "Multiplayer")
-        self.btn3   = self.btn_gui(cx - W//2, 186, W, "Resource Packs")
-        # self.btn4  = self.btn_gui(cx - W//2, 209, W, "Version Manager") # REMOVED
-        # self.btn4  = self.btn_gui(cx - W//2, 209, W, "Options")
-        self.btn5 = self.btn_gui(cx - W//2, 215, W, "Quit Game")
+        self.btn1   = self.btn_gui(cx - W//2, 95, W, "Singleplayer")
+        self.btn2   = self.btn_gui(cx - W//2, 120, W, "Multiplayer")
+        # self.btn3   = self.btn_gui(cx - W//2, 186, W, "Resource Packs")
+        self.btn4  = self.btn_gui(cx - W//2, 145, W, "Options")
+        self.btn5 = self.btn_gui(cx - W//2, 180, W, "Quit Game")
         
 
     def onevent(self, events):
@@ -84,7 +83,7 @@ class MenuScreen(Screen):
                 mx, my = e.pos
                 if   self.btn1.clk(mx, my): self.L.setscreen(WorldListScreen(self.L))
                 elif self.btn2.clk(mx, my): self.L.setscreen(ServerListScreen(self.L))
-                elif self.btn3.clk(mx, my): self.L.setscreen(ResourcePackScreen(self.L))
+                # elif self.btn3.clk(mx, my): self.L.setscreen(ResourcePackScreen(self.L))
                 elif self.btn5.clk(mx, my): self.L.running = False
                 
                 
@@ -93,15 +92,15 @@ class MenuScreen(Screen):
     def draw(self, surf):
         title = self.L.ttle_surf
         
-        tw = min(title.get_width(), WIN_W // 2) + 85
+        tw = min(title.get_width(), WIN_W // 2)
         th = int(title.get_height() * tw / title.get_width())
-        sc = pygame.transform.scale(title, (tw, th))
         tx = (WIN_W - tw) // 2
         ty = 16 * GS - 1
-        surf.blit(sc, (tx, ty + 25))
+        surf.blit(title, (tx, ty + 25))
+
+        """
         sby = ty + th
         tr  = tx + tw
-        
 
         t      = time.time() - self._splash_start
         wob    = abs(math.sin(t * 2.5))
@@ -113,16 +112,19 @@ class MenuScreen(Screen):
         cx     = tr  - 60 * GS
         cy     = sby - 8  * GS + 40
         surf.blit(sc, (cx - sc.get_width()//2, cy - sc.get_height()//2))
+        """
 
         super().draw(surf)
 
         self._drawplayer(surf)
 
+        """
         v = f"Version {__VERSION__}\ngithub.com/paaracetamol\nyoutube.com/@paraccetamol"
         w = "\nBEWARE: This is a minecraft CLONE, not affiliated with mojang or related!"
         l = "\n© Public license, feel free to modify and republish as you wish, give Credit!"
         t = self.bfont.render(v+w+l, False, GRAY)
         surf.blit(t, (4*GS, WIN_H - t.get_height() - 4*GS))
+        """
 
 
 

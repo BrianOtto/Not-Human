@@ -15,17 +15,15 @@ sys.path.insert(0, CONTENT_DIR)
 from version import __VERSION__
 sys.path.pop(0)
 
-
 WIN_W = 1280
 WIN_H = 720
 FPS   = 60
-WINDOW_TITLE = f"Kyklophobia  v{__VERSION__}"
+WINDOW_TITLE = f"Not Human  v{__VERSION__}"
 
 # gui coords -> real/GS 640x360 logical
 GS    = 2
 GUI_W = WIN_W // GS
 GUI_H = WIN_H // GS
-
 
 BTN_SRC_W      = 200
 BTN_SRC_H      = 20
@@ -62,14 +60,13 @@ PING_ANIM_Y = [177, 185, 193, 201, 209]
 
 BTN_BORDER = 3
 
-
 WHITE  = (255, 255, 255)
 GRAY   = (128, 128, 128)
 DGRAY  = (80, 80, 80)
 YELLOW = (255, 255, 0)
 RED    = (255, 80, 80)
 GREEN  = (80, 255, 80)
-
+BLACK  = (0, 0, 0)
 
 SPLASH_TEXTS = [
     "github.com/paaracetamol",

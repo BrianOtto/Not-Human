@@ -6,7 +6,7 @@ from lconst import (
     LIST_TOP, LIST_BOT, LIST_ITEM_PAD,
     SS_CELL,
     BTN_SRC_W, BTN_SRC_H, BTN_Y_NORMAL, BTN_Y_HOVER, BTN_H, BTN_BORDER,
-    WHITE, GRAY, DGRAY, YELLOW
+    WHITE, GRAY, DGRAY, YELLOW, BLACK
 )
 
 
@@ -113,7 +113,7 @@ class Button:
             ), self.rect.topleft
         
         )
-        col = DGRAY if not self.enabled else (YELLOW if self.hovered else WHITE)
+        col = DGRAY if not self.enabled else (BLACK if self.hovered else BLACK)
         txt = self.bfont.render(self.text, False, col)
         tx  = self.rect.x + (self.rect.w - txt.get_width())  // 2
         ty  = self.rect.y + (self.rect.h - txt.get_height()) // 2

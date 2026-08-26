@@ -1,7 +1,7 @@
 [project]
-name = "kyklophobia"
+name = "Not Human"
 version = "0.1.0"
-description = "Minecraft In Python"
+description = "A space opera built on voxels!"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

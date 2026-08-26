@@ -12,7 +12,7 @@ class Font:
     font_surf = None
     char_ws  = None
 
-    def __init__(self, path="ui/font.png", scale=1):
+    def __init__(self, path="ui/font.png", scale=2):
         self.scale = max(1, int(scale))
         self.fpath = path
 
@@ -142,9 +142,11 @@ class Font:
         if cached is not None:
             return cached
             
-
+        # character spacing
+        charSpacing = 2
         l  = text.split('\n')
         w, h = self.textsize(text)
+        w += charSpacing * len(text)
         soff   = self.scale
         surface = pygame.Surface((w + soff, h), pygame.SRCALPHA)
 
@@ -156,7 +158,7 @@ class Font:
         lh  = (CHAR_H + 1) * self.scale
         
 
-        y = 0
+        y = 2
         for i in l:
             x = 0
             for j in i:
@@ -164,10 +166,10 @@ class Font:
                     x += self.charw(' ')
                     continue
                     
-                    
-                surface.blit(self.renderchar(j, shc), (x + soff, y + soff))
+                # removed the drop shadow
+                # surface.blit(self.renderchar(j, shc), (x + soff, y + soff))
                 surface.blit(self.renderchar(j, color), (x, y))
-                x += self.charw(j)
+                x += self.charw(j) + charSpacing
             y += lh
             
 
