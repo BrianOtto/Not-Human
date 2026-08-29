@@ -75,11 +75,11 @@ def nine_slice(src, tw, th):
 class Button:
     def __init__(
         self, x, y, w, h,
-        text, bfont, widgets, enabled=True
+        text, font, widgets, enabled=True
     ):
         self.rect    = pygame.Rect(x, y, w, h)
         self.text    = text
-        self.bfont   = bfont
+        self.font    = font
         self.widgets = widgets
         self.enabled = enabled
         self.hovered = False
@@ -101,9 +101,6 @@ class Button:
     def update(self, mx, my):
         self.hovered = self.enabled and self.rect.collidepoint(mx, my)
         
-        
-        
-
     def draw(self, surf):
         surf.blit(
             nine_slice(
@@ -114,7 +111,7 @@ class Button:
         
         )
         col = DGRAY if not self.enabled else (BLACK if self.hovered else BLACK)
-        txt = self.bfont.render(self.text, False, col)
+        txt = self.font.render(self.text, False, col)
         tx  = self.rect.x + (self.rect.w - txt.get_width())  // 2
         ty  = self.rect.y + (self.rect.h - txt.get_height()) // 2
         surf.blit(txt, (tx, ty))
@@ -123,7 +120,41 @@ class Button:
     def clk(self, mx, my):
         return self.enabled and self.rect.collidepoint(mx, my)
 
+class Icon:
+    def __init__(
+        self, x, y, w, h,
+        text, textToggle, font, 
+        color, colorHover={}, enabled=True
+    ):
+        self.rect       = pygame.Rect(x, y, w, h)
+        self.text       = text
+        self.textToggle = textToggle
+        self.font       = font
+        self.color      = color
+        self.colorHover = color if colorHover == {} else colorHover
+        self.enabled    = enabled
+        self.hovered    = False
 
+    def update(self, mx, my):
+        self.hovered = self.enabled and self.rect.collidepoint(mx, my)
+        
+    def draw(self, surf):
+        color = DGRAY if not self.enabled else (self.colorHover if self.hovered else self.color)
+        icon = self.font.render(self.text, False, color)
+        ix  = self.rect.x + (self.rect.w - icon.get_width())  // 2
+        iy  = self.rect.y + (self.rect.h - icon.get_height()) // 2
+        surf.blit(icon, (ix, iy))
+        
+
+    def clk(self, mx, my):
+        clicked = self.enabled and self.rect.collidepoint(mx, my)
+        
+        if clicked:
+            text = self.text
+            self.text = self.textToggle
+            self.textToggle = text
+        
+        return clicked
 
 
 """

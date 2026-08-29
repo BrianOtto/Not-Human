@@ -4,7 +4,7 @@ import pygame
 from lconst import (
     GS, WIN_W, WIN_H, GUI_W, GUI_H,
     ENTRY_H, ENTRY_PAD, LIST_BOT,
-    BTN_H, BTN_Y_NORMAL, BTN_SRC_W, BTN_SRC_H,
+    BTN_H, BTN_Y_NORMAL, BTN_SRC_W, BTN_SRC_H, ICON_H,
     SIGNAL_W, SIGNAL_H, SIGNAL_Y,
     PING_ANIM_X, PING_ANIM_W, PING_ANIM_H, PING_ANIM_Y,
     RESOURCE_DIR, UI_DIR,
@@ -12,7 +12,7 @@ from lconst import (
     WHITE, GRAY, YELLOW, RED, GREEN, BLACK
 )
 
-from lwidgets import Button, TextInput, ListWidget, nine_slice
+from lwidgets import Button, Icon, TextInput, ListWidget, nine_slice
 from ldata import (
     get_reasourceactive, set_reasourceactive,
     get_available, save_dir, getpname,
@@ -21,28 +21,28 @@ from ldata import (
 )
 
 
-
-
-
 class Screen:
     def __init__(self, launch):
         self.L       = launch
         self.bfont   = launch.bfont
+        self.fontIcon = launch.fontIcon
+        self.fontIconSolid = launch.fontIconSolid
+        self.fontText = launch.fontText
+        self.fontTextBold = launch.fontTextBold
+        self.fontWidget = launch.fontWidget
+        self.fontWidgetBold = launch.fontWidgetBold
         self.widgets = launch.wd_surf
         self.buttons = []
         self.inputs  = []
-        
-        
+        self.icons  = []
 
     def btn_gui(self, gx, gy, gw, text, enabled=True):
-        b = Button(gx*GS, gy*GS, gw*GS, BTN_H, text, self.bfont, self.widgets, enabled=enabled)
+        b = Button(gx*GS, gy*GS, gw*GS, BTN_H, text, self.fontWidget, self.widgets, enabled=enabled)
         self.buttons.append(b); return b
 
     def btn_px(self, x, y, w, text, enabled=True):
         b = Button(x, y, w, BTN_H, text, self.bfont, self.widgets, enabled=enabled)
         self.buttons.append(b); return b
-        
-        
 
     def _tabnext(self, current):
         if not self.inputs: return
@@ -53,13 +53,13 @@ class Screen:
     def onevent(self, events): pass
 
     def update(self, mx, my):
-        for b in self.buttons: b.update(mx, my)
+        for btn in self.buttons: btn.update(mx, my)
+        for ico in self.icons: ico.update(mx, my)
 
     def draw(self, surf):
-        for b  in self.buttons: b.draw(surf)
-        for ti in self.inputs:  ti.draw(surf)
-
-
+        for btn  in self.buttons: btn.draw(surf)
+        for inp in self.inputs:  inp.draw(surf)
+        for ico in self.icons:  ico.draw(surf)
 
 
 class MenuScreen(Screen):
@@ -75,6 +75,12 @@ class MenuScreen(Screen):
         # self.btn3   = self.btn_gui(cx - W//2, 186, W, "Resource Packs")
         self.btn4  = self.btn_gui(cx - W//2, 145, W, "Options")
         self.btn5 = self.btn_gui(cx - W//2, 180, W, "Quit Game")
+
+        # TODO - Consolidate the song title draw logic 
+        # and turn this into a music player widget
+        mpy = WIN_H - ICON_H - 4*GS + 4
+        self.musicPlayer = Icon(4*GS, mpy, ICON_H, ICON_H, "\uf04c", "\uf04b", self.fontIconSolid, GRAY, YELLOW)
+        self.icons.append(self.musicPlayer)
         
 
     def onevent(self, events):
@@ -85,6 +91,7 @@ class MenuScreen(Screen):
                 elif self.btn2.clk(mx, my): self.L.setscreen(ServerListScreen(self.L))
                 # elif self.btn3.clk(mx, my): self.L.setscreen(ResourcePackScreen(self.L))
                 elif self.btn5.clk(mx, my): self.L.running = False
+                elif self.musicPlayer.clk(mx, my): self.L.music = not self.L.music
                 
                 
                 
@@ -126,7 +133,8 @@ class MenuScreen(Screen):
         surf.blit(t, (4*GS, WIN_H - t.get_height() - 4*GS))
         """
 
-
+        songTitle = self.fontText.render("\"Atomic\" by kontraamusic", False, GRAY);
+        surf.blit(songTitle, (4*GS + 40, WIN_H - songTitle.get_height() - 4*GS))
 
 
     def _drawplayer(self, surf):

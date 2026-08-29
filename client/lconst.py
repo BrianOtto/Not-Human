@@ -11,6 +11,8 @@ SERVERS_FILE = os.path.join(BASE_DIR, "servers.json")
 NAME_FILE    = os.path.join(BASE_DIR, "name.txt")
 SAVES_DIR    = os.path.join(BASE_DIR, "saves")
 
+FONTS_DIR    = os.path.join(UI_DIR, "fonts")
+
 sys.path.insert(0, CONTENT_DIR)
 from version import __VERSION__
 sys.path.pop(0)
@@ -34,6 +36,7 @@ BTN_Y_HOVER    = 86
 BTN_H_GUI   = 20
 ENTRY_H_GUI = 40
 ICON_GUI    = 36
+ICON_H_GUI  = 15
 ENTRY_PAD   = GS * 2
 
 LIST_TOP_GUI    = 48
@@ -43,6 +46,7 @@ LIST_HEIGHT_GUI = LIST_BOT_GUI - LIST_TOP_GUI
 
 ENTRY_H  = ENTRY_H_GUI * GS
 ICON_SZ  = ICON_GUI * GS
+ICON_H   = ICON_H_GUI * GS
 BTN_H    = BTN_H_GUI * GS
 LIST_TOP = LIST_TOP_GUI * GS
 LIST_BOT = LIST_BOT_GUI * GS
@@ -63,7 +67,7 @@ BTN_BORDER = 3
 WHITE  = (255, 255, 255)
 GRAY   = (128, 128, 128)
 DGRAY  = (80, 80, 80)
-YELLOW = (255, 255, 0)
+YELLOW = (249, 203, 20)
 RED    = (255, 80, 80)
 GREEN  = (80, 255, 80)
 BLACK  = (0, 0, 0)

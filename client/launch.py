@@ -9,7 +9,7 @@ import logformat
 
 from lconst import (
     WIN_W, WIN_H, FPS, GS,
-    UI_DIR, CONTENT_DIR, BASE_DIR, SAVES_DIR, RESOURCE_DIR,
+    UI_DIR, FONTS_DIR, CONTENT_DIR, BASE_DIR, SAVES_DIR, RESOURCE_DIR,
     WINDOW_TITLE,
     WHITE, GRAY, GREEN
 )
@@ -89,6 +89,7 @@ class Launcher:
     def __init__(self):
         logformat.setup()
         pygame.init()
+        pygame.mixer.init()
         self.screen = pygame.display.set_mode((WIN_W, WIN_H))
         ico = pygame.image.load('content/icon.ico') 
         pygame.display.set_icon(ico)
@@ -98,12 +99,23 @@ class Launcher:
         setpname(getpname())   # make sure name.txt exists for easy access
         self.mini    = MiniPlayer(os.path.join(RESOURCE_DIR, "player", "skin.png"))
         self.running = True
+        self.music   = True
         self.clock   = pygame.time.Clock()
         self._screen = MenuScreen(self)
+
+        pygame.mixer.music.load(os.path.join(UI_DIR, "intro.ogg"));
+        pygame.mixer.music.play(-1)
 
 
     def loadassets(self):
         self.bfont   = Font(os.path.join(UI_DIR, "font.png"), scale=GS)
+        self.fontIcon = pygame.font.Font(os.path.join(FONTS_DIR, "FontAwesome-Regular.otf"), 18)
+        self.fontIconSolid = pygame.font.Font(os.path.join(FONTS_DIR, "FontAwesome-Solid.otf"), 18)
+        self.fontText = pygame.font.Font(os.path.join(FONTS_DIR, "OpenSans-Regular.ttf"), 18)
+        self.fontTextBold = pygame.font.Font(os.path.join(FONTS_DIR, "OpenSans-Bold.ttf"), 18)
+        self.fontWidget = pygame.font.Font(os.path.join(FONTS_DIR, "PassionOne-Regular.ttf"), 30)
+        self.fontWidgetBold = pygame.font.Font(os.path.join(FONTS_DIR, "PassionOne-Bold.ttf"), 30)
+
         self.wd_surf = pygame.image.load(os.path.join(UI_DIR, "widgets.png")).convert_alpha()
         self.ss_surf = pygame.image.load(os.path.join(UI_DIR, "server_selection.png")).convert_alpha()
 
@@ -326,7 +338,12 @@ class Launcher:
             for i in events:
                 if i.type == pygame.QUIT: self.running = False
                 
-
+            if self.music:
+                if not pygame.mixer.music.get_busy():
+                    pygame.mixer.music.unpause()
+            else:
+                pygame.mixer.music.pause()
+             
             mx, my = pygame.mouse.get_pos()
             # print(mx, my)
             self._screen.update(mx, my)
