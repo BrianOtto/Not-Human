@@ -88,8 +88,9 @@ class Launcher:
 
     def __init__(self):
         logformat.setup()
+
         pygame.init()
-        pygame.mixer.init()
+
         self.screen = pygame.display.set_mode((WIN_W, WIN_H))
         ico = pygame.image.load('content/icon.ico') 
         pygame.display.set_icon(ico)
@@ -97,14 +98,11 @@ class Launcher:
 
         self.loadassets()
         setpname(getpname())   # make sure name.txt exists for easy access
-        self.mini    = MiniPlayer(os.path.join(RESOURCE_DIR, "player", "skin.png"))
-        self.running = True
-        self.music   = True
-        self.clock   = pygame.time.Clock()
-        self._screen = MenuScreen(self)
-
-        pygame.mixer.music.load(os.path.join(UI_DIR, "intro.ogg"));
-        pygame.mixer.music.play(-1)
+        self.mini     = MiniPlayer(os.path.join(RESOURCE_DIR, "player", "skin.png"))
+        self.running  = True
+        self.music    = False
+        self.clock    = pygame.time.Clock()
+        self._screen  = MenuScreen(self)
 
 
     def loadassets(self):
@@ -288,6 +286,10 @@ class Launcher:
 
             _boot_t = time.time()
             # print(_boot_t)
+
+            if pygame.mixer.get_init():
+                pygame.mixer.music.stop()
+
             world.run()
 
         except Exception as e:
@@ -337,13 +339,14 @@ class Launcher:
 
             for i in events:
                 if i.type == pygame.QUIT: self.running = False
+
+            if pygame.mixer.get_init():
+                if self.music:
+                    if not pygame.mixer.music.get_busy():
+                        pygame.mixer.music.unpause()
+                else:
+                    pygame.mixer.music.pause()
                 
-            if self.music:
-                if not pygame.mixer.music.get_busy():
-                    pygame.mixer.music.unpause()
-            else:
-                pygame.mixer.music.pause()
-             
             mx, my = pygame.mouse.get_pos()
             # print(mx, my)
             self._screen.update(mx, my)

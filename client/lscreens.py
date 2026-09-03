@@ -66,8 +66,8 @@ class MenuScreen(Screen):
     
     def __init__(self, launch):
         super().__init__(launch)
-        self._splash       = SPLASH_TEXTS[int(time.time()) % len(SPLASH_TEXTS)]
-        self._splash_start = time.time()
+        # self._splash       = SPLASH_TEXTS[int(time.time()) % len(SPLASH_TEXTS)]
+        # self._splash_start = time.time()
 
         cx = GUI_W // 2; W = 200
         self.btn1   = self.btn_gui(cx - W//2, 95, W, "Singleplayer")
@@ -81,6 +81,11 @@ class MenuScreen(Screen):
         mpy = WIN_H - ICON_H - 4*GS + 4
         self.musicPlayer = Icon(4*GS, mpy, ICON_H, ICON_H, "\uf04c", "\uf04b", self.fontIconSolid, GRAY, YELLOW)
         self.icons.append(self.musicPlayer)
+
+        pygame.mixer.init()
+        pygame.mixer.music.load(os.path.join(UI_DIR, "intro.ogg"));
+        pygame.mixer.music.play(-1)
+        self.L.music = True
         
 
     def onevent(self, events):
