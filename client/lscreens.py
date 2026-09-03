@@ -82,10 +82,12 @@ class MenuScreen(Screen):
         self.musicPlayer = Icon(4*GS, mpy, ICON_H, ICON_H, "\uf04c", "\uf04b", self.fontIconSolid, GRAY, YELLOW)
         self.icons.append(self.musicPlayer)
 
-        pygame.mixer.init()
-        pygame.mixer.music.load(os.path.join(UI_DIR, "intro.ogg"));
-        pygame.mixer.music.play(-1)
-        self.L.music = True
+        if not self.L.musicLoaded:
+            pygame.mixer.init()
+            pygame.mixer.music.load(os.path.join(UI_DIR, "intro.ogg"));
+            pygame.mixer.music.play(-1)
+            self.L.music = True
+            self.L.musicLoaded = True
         
 
     def onevent(self, events):

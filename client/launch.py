@@ -98,11 +98,12 @@ class Launcher:
 
         self.loadassets()
         setpname(getpname())   # make sure name.txt exists for easy access
-        self.mini     = MiniPlayer(os.path.join(RESOURCE_DIR, "player", "skin.png"))
-        self.running  = True
-        self.music    = False
-        self.clock    = pygame.time.Clock()
-        self._screen  = MenuScreen(self)
+        self.mini        = MiniPlayer(os.path.join(RESOURCE_DIR, "player", "skin.png"))
+        self.running     = True
+        self.music       = False
+        self.musicLoaded = False
+        self.clock       = pygame.time.Clock()
+        self._screen     = MenuScreen(self)
 
 
     def loadassets(self):
@@ -288,7 +289,8 @@ class Launcher:
             # print(_boot_t)
 
             if pygame.mixer.get_init():
-                pygame.mixer.music.stop()
+                pygame.mixer.music.unload()
+                self.musicLoaded = False
 
             world.run()
 
