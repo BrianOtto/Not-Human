@@ -60,7 +60,7 @@ class Camera:
         self._proj = None
 
     def oninput(self, dt):
-        if pygame.joystick.get_init():
+        if pygame.joystick.get_count() > 0:
             joystick = pygame.joystick.Joystick(0)
 
             jmx = joystick.get_axis(0)
@@ -76,10 +76,10 @@ class Camera:
 
         if keys[K_LSHIFT] and keys[K_w]: spd *= 3.0
 
-        if keys[K_w] or (jmy > -1.0 and jmy < -JS_SMOOTHING): self.pos += self.front * spd
-        if keys[K_s] or (jmy < 1.0 and jmy > JS_SMOOTHING): self.pos -= self.front * spd
-        if keys[K_a] or (jmx > -1.0 and jmx < -JS_SMOOTHING): self.pos -= right * spd
-        if keys[K_d] or (jmx < 1.0 and jmx > JS_SMOOTHING): self.pos += right * spd
+        if keys[K_w] or (jmy >= -1.0 and jmy < -JS_SMOOTHING): self.pos += self.front * spd
+        if keys[K_s] or (jmy <= 1.0 and jmy > JS_SMOOTHING): self.pos -= self.front * spd
+        if keys[K_a] or (jmx >= -1.0 and jmx < -JS_SMOOTHING): self.pos -= right * spd
+        if keys[K_d] or (jmx <= 1.0 and jmx > JS_SMOOTHING): self.pos += right * spd
         if keys[K_SPACE]: self.pos[1] += spd
         if keys[K_LCTRL]: self.pos[1] -= spd
 
@@ -98,7 +98,7 @@ class Camera:
     def onjoystick(self):
             # left axis movement is handled in oninput()
 
-            if pygame.joystick.get_init():
+            if pygame.joystick.get_count() > 0:
                 joystick = pygame.joystick.Joystick(0)
 
                 # TODO: detect controller type and switch

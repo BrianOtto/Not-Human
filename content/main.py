@@ -84,7 +84,6 @@ class VoxelWorld:
         pygame.display.set_icon(ico)
         pygame.mouse.set_visible(False)
         pygame.event.set_grab(True)
-        pygame.joystick.init()
         
         self.ctx = moderngl.create_context()
         self.ctx.enable(moderngl.DEPTH_TEST)
@@ -704,6 +703,12 @@ class VoxelWorld:
                 running = False
                 continue
 
+            for event in pygame.event.get():
+                if event.type == pygame.JOYDEVICEADDED:
+                    pygame.joystick.init()
+                if event.type == pygame.JOYDEVICEREMOVED:
+                    pygame.joystick.quit()
+            
             if not self.oninv and not self.onchat:
                 self.p.oninput(dt)
                 self.p.onmouse()
@@ -1053,7 +1058,7 @@ class VoxelWorld:
             bid  = get_biome(fx, fz, self.chunker.world.noise.p)
             bnm  = BIOME_NAMES[bid] if 0 <= bid < len(BIOME_NAMES) else "Unknown"
 
-            if pygame.joystick.get_init():
+            if pygame.joystick.get_count() > 0:
                 joystick = pygame.joystick.Joystick(0)
             else:
                 joystick = None

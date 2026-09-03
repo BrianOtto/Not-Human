@@ -197,7 +197,7 @@ class Player:
             self.fcam.oninput(dt)
             return
 
-        if pygame.joystick.get_init():
+        if pygame.joystick.get_count() > 0:
             joystick = pygame.joystick.Joystick(0)
 
             jmx = joystick.get_axis(0)
@@ -234,10 +234,10 @@ class Player:
 
         md = np.array([0.0, 0.0, 0.0], dtype='f4')
 
-        if keys[K_w] or (jmy > -1.0 and jmy < -JS_SMOOTHING): md += fwd
-        if keys[K_s] or (jmy < 1.0 and jmy > JS_SMOOTHING): md -= fwd
-        if keys[K_a] or (jmx > -1.0 and jmx < -JS_SMOOTHING): md -= rgt
-        if keys[K_d] or (jmx < 1.0 and jmx > JS_SMOOTHING): md += rgt
+        if keys[K_w] or (jmy >= -1.0 and jmy < -JS_SMOOTHING): md += fwd
+        if keys[K_s] or (jmy <= 1.0 and jmy > JS_SMOOTHING): md -= fwd
+        if keys[K_a] or (jmx >= -1.0 and jmx < -JS_SMOOTHING): md -= rgt
+        if keys[K_d] or (jmx <= 1.0 and jmx > JS_SMOOTHING): md += rgt
 
         if self.fly:
             if keys[K_SPACE]: md[1] += 1.0
@@ -529,7 +529,7 @@ class Player:
             if self.cmode == 3:
                 from config import JS_SENSITIVITY
 
-                if pygame.joystick.get_init():
+                if pygame.joystick.get_count() > 0:
                     joystick = pygame.joystick.Joystick(0)
 
                     # look
