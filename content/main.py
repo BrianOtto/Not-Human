@@ -84,6 +84,7 @@ class VoxelWorld:
         pygame.display.set_icon(ico)
         pygame.mouse.set_visible(False)
         pygame.event.set_grab(True)
+        pygame.joystick.init()
         
         self.ctx = moderngl.create_context()
         self.ctx.enable(moderngl.DEPTH_TEST)
@@ -695,7 +696,7 @@ class VoxelWorld:
             if self._resetreq:
                 self.resetworld()
                 self._resetreq = False
-                
+                        
             # t0 = time.perf_counter()
             dt = self.clock.tick(60) / 1000.0
 
@@ -706,9 +707,7 @@ class VoxelWorld:
             if not self.oninv and not self.onchat:
                 self.p.oninput(dt)
                 self.p.onmouse()
-                
-                
-                
+                self.p.onjoystick()
 
             self.onmine(dt)
 
@@ -1053,9 +1052,24 @@ class VoxelWorld:
                 
             bid  = get_biome(fx, fz, self.chunker.world.noise.p)
             bnm  = BIOME_NAMES[bid] if 0 <= bid < len(BIOME_NAMES) else "Unknown"
+
+            if pygame.joystick.get_init():
+                joystick = pygame.joystick.Joystick(0)
+            else:
+                joystick = None
+
+            jname = "None" if joystick == None else joystick.get_name()
+            j0 = "0.00" if not joystick else round(joystick.get_axis(0), 2)
+            j1 = "0.00" if not joystick else round(joystick.get_axis(1), 2)
+            j2 = "0.00" if not joystick else round(joystick.get_axis(2), 2)
+            j3 = "0.00" if not joystick else round(joystick.get_axis(3), 2)
+            j4 = "0.00" if not joystick else round(joystick.get_axis(4), 2)
+            j5 = "0.00" if not joystick else round(joystick.get_axis(5), 2)
             
             stats = [
                      f"FPS: {fps:.1f}", "", 
+                     f"Controller: {jname}",
+                     f"Controller Axis: 0={j0} 1={j1} 3={j3} 4={j4} 2={j2} 5={j5}",
                      f"Position: ({fx:.1f}, {fy:.1f}, {fz:.1f})", 
                      f"Facing: {fdir} (yaw={yaw:.0f})",
                      f"Chunk: ({chx}, {chz})",

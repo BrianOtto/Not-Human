@@ -5,7 +5,7 @@ import math
 
 from engine.camera import Camera
 from engine.physics import PhysicsEngine
-from config import BREAK_T, RAYCAST_DIST, HURT_T, KNOCK_T
+from config import BREAK_T, RAYCAST_DIST, HURT_T, KNOCK_T, JS_SMOOTHING
 from world.blocks import WATER, WATER_FLOWING
 
 
@@ -197,6 +197,15 @@ class Player:
             self.fcam.oninput(dt)
             return
 
+        if pygame.joystick.get_init():
+            joystick = pygame.joystick.Joystick(0)
+
+            jmx = joystick.get_axis(0)
+            jmy = joystick.get_axis(1)
+        else:
+            jmx = 0.0
+            jmy = 0.0
+            
         keys = pygame.key.get_pressed()
 
         if keys[K_f]:
@@ -225,10 +234,10 @@ class Player:
 
         md = np.array([0.0, 0.0, 0.0], dtype='f4')
 
-        if keys[K_w]: md += fwd
-        if keys[K_s]: md -= fwd
-        if keys[K_a]: md -= rgt
-        if keys[K_d]: md += rgt
+        if keys[K_w] or (jmy > -1.0 and jmy < -JS_SMOOTHING): md += fwd
+        if keys[K_s] or (jmy < 1.0 and jmy > JS_SMOOTHING): md -= fwd
+        if keys[K_a] or (jmx > -1.0 and jmx < -JS_SMOOTHING): md -= rgt
+        if keys[K_d] or (jmx < 1.0 and jmx > JS_SMOOTHING): md += rgt
 
         if self.fly:
             if keys[K_SPACE]: md[1] += 1.0
@@ -505,16 +514,29 @@ class Player:
             self.fcam.onmouse()
             return
         if self.cmode == 3:
-            from config import SENSIVITY
+            from config import MS_SENSITIVITY
             dx, dy = pygame.mouse.get_rel()
-            self.orb_yaw   += dx * SENSIVITY
-            self.orb_pitch += dy * SENSIVITY
+            self.orb_yaw   += dx * MS_SENSITIVITY
+            self.orb_pitch += dy * MS_SENSITIVITY
             self.orb_pitch = max(-89.0, min(89.0, self.orb_pitch))
         else:
             self.cam.onmouse()
             
-            
-            
+    def onjoystick(self):
+            if self.freecam and self.fcmove:
+                self.fcam.onjoystick()
+                return
+            if self.cmode == 3:
+                from config import JS_SENSITIVITY
+
+                if pygame.joystick.get_init():
+                    joystick = pygame.joystick.Joystick(0)
+
+                    # look
+                    self.orb_yaw += joystick.get_axis(2) * JS_SENSITIVITY
+                    self.orb_pitch -= joystick.get_axis(3) * JS_SENSITIVITY
+            else:
+                self.cam.onjoystick()
 
     def onscroll(self, y):
         if self.cmode == 3:

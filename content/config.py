@@ -48,13 +48,14 @@ CRIT_DIV          = 2.5
 FOV               = 70.0
 N_PLANE           = 0.1
 F_PLANE           = 500.0
-SENSIVITY         = 0.15
-MOUS_SMOOTH       = 0.5
 
+# mouse
+MS_SENSITIVITY    = 0.15
+MS_SMOOTHING      = 0.5
 
-
-
-
+# joystick
+JS_SENSITIVITY    = 5.0
+JS_SMOOTHING      = 0.3
 
 SV_PORT           = 25250
 SV_HOST           = "0.0.0.0"
