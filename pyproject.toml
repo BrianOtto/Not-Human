@@ -1,7 +1,7 @@
 [project]
 name = "Not Human"
 version = "0.1.0"
-description = "A space opera built on voxels!"
+description = "A space adventure built on voxels!"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
