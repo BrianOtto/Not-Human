@@ -1097,7 +1097,7 @@ class VoxelWorld:
             gst = "ON" if self.gamma_shader.enabled else "OFF"
             if self.p.freecam:
                 keybinds = [
-                    "github.com/paaracetamol",
+                    "https://not-human.net",
                     "",
                     "Down [LCtrl]",
                     "Sprint [LShift]",
@@ -1107,7 +1107,7 @@ class VoxelWorld:
                 ]
             else:
                 keybinds = [
-                    "github.com/paaracetamol",
+                    "https://not-human.net",
                     "",
                     "Down [LCtrl]",
                     "Sprint [LShift]",
