@@ -202,9 +202,15 @@ class Player:
 
             jmx = joystick.get_axis(0)
             jmy = joystick.get_axis(1)
+
+            jba = joystick.get_button(0)
+            jbb = joystick.get_button(1)
         else:
             jmx = 0.0
             jmy = 0.0
+
+            jba = False
+            jbb = False
             
         keys = pygame.key.get_pressed()
 
@@ -218,7 +224,7 @@ class Player:
         self.sprint = keys[K_LSHIFT]
 
         if not self.fly:
-            self.crouching = keys[K_LCTRL]
+            self.crouching = keys[K_LCTRL] or jbb
         else:
             self.crouching = False
 
@@ -240,8 +246,8 @@ class Player:
         if keys[K_d] or (jmx <= 1.0 and jmx > JS_SMOOTHING): md += rgt
 
         if self.fly:
-            if keys[K_SPACE]: md[1] += 1.0
-            if keys[K_LCTRL]: md[1] -= 1.0
+            if keys[K_SPACE] or jba: md[1] += 1.0
+            if keys[K_LCTRL] or jbb: md[1] -= 1.0
 
         ispr = self.sprint and not self.crouching
         # print(md)
@@ -256,7 +262,7 @@ class Player:
                 self.vel[2] *= 0.3
 
         if not self.fly:
-            if keys[K_SPACE]:
+            if keys[K_SPACE] or jba:
                 if not self.on_jump and self.on_ground:
                     self.vel = self.physics.apply_jump(self.vel, self.on_ground)
                     self.on_jump = True

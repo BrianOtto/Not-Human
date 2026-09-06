@@ -31,7 +31,7 @@ from config import (
     WATER_PLANE, SUN_SZ, HLIGHT_SCL, LINE_W,
     SCL_HUD, F_PLANE, RAYCAST_DIST,
     HARDNESS, MINE_MULT, CRACK_SCL, HURT_T, POP_SCL, POP_YOFF, ENT_REACH,
-    P_W, P_H
+    P_W, P_H, JS_SMOOTHING
 )
 
 
@@ -387,6 +387,7 @@ class VoxelWorld:
         self.render_extruded = ExtrudedRenderer(self.ctx)
         self.ui.chatmsg("World loaded!", color=(200, 200, 200))
         self.clock = pygame.time.Clock()
+        self.last_event = 0
         
 
         pf = os.path.join(config.root, wname, "player.json")
@@ -544,11 +545,19 @@ class VoxelWorld:
 
 
     def onmine(self, dt):
+        if pygame.joystick.get_count() > 0:
+            joystick = pygame.joystick.Joystick(0)
+            jtr = joystick.get_axis(5)
+        else:
+            jtr = -1.0
+        
         p  = self.p
         on = (
             not p.gmode and not self.oninv and not self.onchat
-            and pygame.event.get_grab() 
-            and pygame.mouse.get_pressed()[0]
+            and (
+                (pygame.event.get_grab() and pygame.mouse.get_pressed()[0]) or
+                (jtr >= -1.0 + JS_SMOOTHING and jtr <= 1.0)
+            )
         )
 
         tb = p.targetblock(RAYCAST_DIST)[0] if on else None
@@ -702,12 +711,6 @@ class VoxelWorld:
             if not self.onevent(pygame.event.get()):
                 running = False
                 continue
-
-            for event in pygame.event.get():
-                if event.type == pygame.JOYDEVICEADDED:
-                    pygame.joystick.init()
-                if event.type == pygame.JOYDEVICEREMOVED:
-                    pygame.joystick.quit()
             
             if not self.oninv and not self.onchat:
                 self.p.oninput(dt)

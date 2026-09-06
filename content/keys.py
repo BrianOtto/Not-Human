@@ -2,7 +2,7 @@ import pygame
 import threading
 import time
 from pygame.locals import *
-from config import SCL_HUD, WIN_W, WIN_H
+from config import SCL_HUD, WIN_W, WIN_H, JS_SMOOTHING
 from entity.blockenty import itemblock
 from items.registry import REGISTRY, ItemStack
 
@@ -14,6 +14,13 @@ def onEvent(w, events):
     for i in events:
         if i.type == QUIT: return False
 
+        if i.type == pygame.JOYDEVICEADDED:
+            pygame.joystick.init()
+            continue
+        # if i.type == pygame.JOYDEVICEREMOVED:
+        #     pygame.joystick.quit()
+        #     continue
+            
         if i.type == KEYDOWN and i.key == K_TAB:
             w.tabdown = True
             continue
@@ -242,7 +249,16 @@ def onEvent(w, events):
                             
                             
 
-        elif i.type == MOUSEBUTTONDOWN:
+        elif i.type == MOUSEBUTTONDOWN or i.type == pygame.JOYAXISMOTION:
+            # add a small delay between joystick events
+            if i.type == pygame.JOYAXISMOTION:
+                now = pygame.time.get_ticks()
+
+                if now - w.last_event < 150:
+                    continue
+                else:
+                    w.last_event = now
+
             if w.oninv:
                 mx, my  = pygame.mouse.get_pos()
                 scale   = SCL_HUD
@@ -256,10 +272,7 @@ def onEvent(w, events):
                         
                         w.p.inv._held = browser._heldstack
                         browser._heldstack = None
-                        
-                        
-                        
-                        
+
                 else:
                     clk = w.p.inv.onclick(mx, my, ix, iy, scale, i.button)
                     
@@ -276,13 +289,20 @@ def onEvent(w, events):
                             w.netclient.senddrop(held.item.itemId, held.count, pos, vel)
 
                         else: w.itementys.spawn(held.item.itemId, held.count, pos, td)
-                        
-                        
-                        
-                        
 
-            elif pygame.event.get_grab():
-                if i.button == 1:
+            elif pygame.event.get_grab() or pygame.joystick.get_init():
+                ismouse = (i.type == MOUSEBUTTONDOWN)
+
+                if pygame.joystick.get_count() > 0:
+                    joystick = pygame.joystick.Joystick(0)
+
+                    jtl = joystick.get_axis(4)
+                    jtr = joystick.get_axis(5)
+                else:
+                    jtl = -1.0
+                    jtr = -1.0
+
+                if (ismouse and i.button == 1) or (jtr >= -1.0 + JS_SMOOTHING):
                     w.p.swing()
 
                     if w.onattack(): continue
@@ -291,11 +311,7 @@ def onEvent(w, events):
                         tb, face = w.p.targetblock(5.0)
                         if tb: w.breakblock(*tb)
 
-
-
-
-
-                elif i.button == 3:
+                elif (ismouse and i.button == 3) or (jtl >= -1.0 + JS_SMOOTHING):
                     tb, face = w.p.targetblock(5.0)
                     
                     if tb:
@@ -339,7 +355,7 @@ def onEvent(w, events):
                                 hand = itemblock(_stack.item.itemId, tid)
                                 if hand: hand(w.blockentys, bx, by, bz, _stack, w)
 
-                elif i.button == 2:
+                elif (ismouse and i.button == 2):
                     tb, face = w.p.targetblock(5.0)
 
                     if tb:
@@ -350,16 +366,13 @@ def onEvent(w, events):
                             idef = REGISTRY.get(bt)
                             w.p.inv.slots[w.p._slot] = ItemStack(idef, idef.max_stack)
 
-                elif i.button == 4:
+                elif (ismouse and i.button == 4):
                     if w.oninv: w.ui.invbrwser.onscroll(1)
                     else: w.p._slot = (w.p._slot - 1) % 9
 
-                elif i.button == 5:
+                elif (ismouse and i.button == 5):
                     if w.oninv: w.ui.invbrwser.onscroll(-1)
                     else: w.p._slot = (w.p._slot + 1) % 9
-
-
-
 
 
     return True

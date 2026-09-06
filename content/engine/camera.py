@@ -50,11 +50,6 @@ class Camera:
             )
 
         return self._proj * view
-        
-        
-        
-        
-        
 
     def invalidproj(self):
         self._proj = None
@@ -65,9 +60,15 @@ class Camera:
 
             jmx = joystick.get_axis(0)
             jmy = joystick.get_axis(1)
+
+            jba = joystick.get_button(0)
+            jbb = joystick.get_button(1)
         else:
             jmx = 0.0
             jmy = 0.0
+
+            jba = False
+            jbb = False
             
         keys  = pygame.key.get_pressed()
         spd   = 25.0 * dt
@@ -80,8 +81,8 @@ class Camera:
         if keys[K_s] or (jmy <= 1.0 and jmy > JS_SMOOTHING): self.pos -= self.front * spd
         if keys[K_a] or (jmx >= -1.0 and jmx < -JS_SMOOTHING): self.pos -= right * spd
         if keys[K_d] or (jmx <= 1.0 and jmx > JS_SMOOTHING): self.pos += right * spd
-        if keys[K_SPACE]: self.pos[1] += spd
-        if keys[K_LCTRL]: self.pos[1] -= spd
+        if keys[K_SPACE] or jba: self.pos[1] += spd
+        if keys[K_LCTRL] or jbb: self.pos[1] -= spd
 
     def onmouse(self):
         dx, dy = pygame.mouse.get_rel()
@@ -96,12 +97,11 @@ class Camera:
         self.updatevecs()
 
     def onjoystick(self):
-            # left axis movement is handled in oninput()
+            # left axis movement and buttons are handled in oninput()
 
             if pygame.joystick.get_count() > 0:
                 joystick = pygame.joystick.Joystick(0)
 
-                # TODO: detect controller type and switch
                 jvx = joystick.get_axis(2)
                 jvy = joystick.get_axis(3)
 
