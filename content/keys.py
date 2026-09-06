@@ -20,13 +20,40 @@ def onEvent(w, events):
         # if i.type == pygame.JOYDEVICEREMOVED:
         #     pygame.joystick.quit()
         #     continue
+        
+        if pygame.joystick.get_count() > 0:
+            joystick = pygame.joystick.Joystick(0)
+
+            jht = joystick.get_hat(0)
+
+            jtl = joystick.get_axis(4)
+            jtr = joystick.get_axis(5)
+
+            jbl = joystick.get_button(4)
+            jbr = joystick.get_button(5)
+            jmb = joystick.get_button(6)
+        else:
+            jht = (0, 0)
+
+            jtl = -1.0
+            jtr = -1.0
+
+            jbl = False
+            jbr = False
+            jmb = False
             
-        if i.type == KEYDOWN and i.key == K_TAB:
-            w.tabdown = True
-            continue
-        if i.type == KEYUP and i.key == K_TAB:
-            w.tabdown = False
-            continue
+        if i.type == KEYDOWN or i.type == JOYBUTTONDOWN:
+            if i.type != KEYDOWN: i.key = 0
+
+            if i.key == K_TAB or jmb:
+                w.tabdown = True
+                continue
+        if i.type == KEYUP or i.type == JOYBUTTONUP:
+            if i.type != KEYUP: i.key = 0
+
+            if i.key == K_TAB or not jmb:
+                w.tabdown = False
+                continue
 
         if w.onchat:
             if i.type == KEYDOWN:
@@ -76,15 +103,19 @@ def onEvent(w, events):
 
 
 
-        if i.type == KEYUP:
-            if i.key == K_t and not w.oninv and not w.onchat:
+        if i.type == KEYUP or i.type == JOYHATMOTION:
+            if i.type != KEYUP: i.key = 0
+
+            if (i.key == K_t or jht == (1, 0)) and not w.oninv and not w.onchat:
                 w.onchat = True
                 w.ibuff  = ""
                 pygame.event.set_grab(False)
                 pygame.mouse.set_visible(True)
                 continue
 
-        if i.type == KEYDOWN:
+        if i.type == KEYDOWN or i.type == JOYHATMOTION or i.type == JOYBUTTONDOWN:
+            if i.type != KEYDOWN: i.key = 0
+
             if i.key == K_t: continue
                 
                 
@@ -115,15 +146,16 @@ def onEvent(w, events):
                         pygame.mouse.set_visible(True)
 
             elif i.key == K_F1 and not w.oninv:
-                new = not w.showhud
-                w.showhud   = new
-                w.showdebug = new
+                w.showhud = not w.showhud
 
             elif i.key == K_F2:
                 pygame.image.save(w.screen, f"shot_{int(time.time())}.png")
 
             elif i.key == K_F3 and not w.oninv:
-                w.showborder = not w.showborder
+                new = not w.showborder
+                w.showborder = new
+                w.showdebug = new
+
                 w.ui.chatmsg(f"Chunk Borders: {'ON' if w.showborder else 'OFF'}", color=(200, 200, 255))
 
             elif i.key == K_F4 and not w.oninv:
@@ -180,11 +212,23 @@ def onEvent(w, events):
                     pygame.event.set_grab(True)
                     pygame.mouse.set_visible(False)
 
-            elif i.key == K_n and w.oninv: w.ui.invbrwser.prev_page()
-            elif i.key == K_m and w.oninv: w.ui.invbrwser.next_page()
+            elif (i.key == K_n or jbl) and w.oninv: w.ui.invbrwser.prev_page()
+            elif (i.key == K_m or jbr) and w.oninv: w.ui.invbrwser.next_page()
 
             elif K_1 <= i.key <= K_9: w.p._slot = i.key - K_1
 
+            elif jbl:
+                if w.p._slot == 0:
+                    w.p._slot = 8
+                else:
+                    w.p._slot = w.p._slot - 1
+
+            elif jbr:
+                if w.p._slot == 8:
+                    w.p._slot = 0
+                else:
+                    w.p._slot = w.p._slot + 1
+                    
             elif i.key == K_DELETE:
                 mods = pygame.key.get_mods()
 
@@ -196,7 +240,7 @@ def onEvent(w, events):
                     hvr = w.p.inv._hslot
                     if hvr >= 0: w.p.inv.slots[hvr] = None
 
-            elif i.key == K_q:
+            elif i.key == K_q or jht == (0, -1):
                 ictrl = pygame.key.get_mods() & KMOD_CTRL
                 
                 if w.oninv:
@@ -291,18 +335,9 @@ def onEvent(w, events):
                         else: w.itementys.spawn(held.item.itemId, held.count, pos, td)
 
             elif pygame.event.get_grab() or pygame.joystick.get_init():
-                ismouse = (i.type == MOUSEBUTTONDOWN)
+                if i.type != MOUSEBUTTONDOWN: i.button = 0
 
-                if pygame.joystick.get_count() > 0:
-                    joystick = pygame.joystick.Joystick(0)
-
-                    jtl = joystick.get_axis(4)
-                    jtr = joystick.get_axis(5)
-                else:
-                    jtl = -1.0
-                    jtr = -1.0
-
-                if (ismouse and i.button == 1) or (jtr >= -1.0 + JS_SMOOTHING):
+                if i.button == 1 or (jtr >= -1.0 + JS_SMOOTHING):
                     w.p.swing()
 
                     if w.onattack(): continue
@@ -311,7 +346,7 @@ def onEvent(w, events):
                         tb, face = w.p.targetblock(5.0)
                         if tb: w.breakblock(*tb)
 
-                elif (ismouse and i.button == 3) or (jtl >= -1.0 + JS_SMOOTHING):
+                elif i.button == 3 or (jtl >= -1.0 + JS_SMOOTHING):
                     tb, face = w.p.targetblock(5.0)
                     
                     if tb:
@@ -355,7 +390,7 @@ def onEvent(w, events):
                                 hand = itemblock(_stack.item.itemId, tid)
                                 if hand: hand(w.blockentys, bx, by, bz, _stack, w)
 
-                elif (ismouse and i.button == 2):
+                elif i.button == 2:
                     tb, face = w.p.targetblock(5.0)
 
                     if tb:
@@ -366,11 +401,11 @@ def onEvent(w, events):
                             idef = REGISTRY.get(bt)
                             w.p.inv.slots[w.p._slot] = ItemStack(idef, idef.max_stack)
 
-                elif (ismouse and i.button == 4):
+                elif i.button == 4:
                     if w.oninv: w.ui.invbrwser.onscroll(1)
                     else: w.p._slot = (w.p._slot - 1) % 9
 
-                elif (ismouse and i.button == 5):
+                elif i.button == 5:
                     if w.oninv: w.ui.invbrwser.onscroll(-1)
                     else: w.p._slot = (w.p._slot + 1) % 9
 

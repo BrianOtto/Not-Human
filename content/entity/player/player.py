@@ -200,28 +200,34 @@ class Player:
         if pygame.joystick.get_count() > 0:
             joystick = pygame.joystick.Joystick(0)
 
+            jht = joystick.get_hat(0)
+
             jmx = joystick.get_axis(0)
             jmy = joystick.get_axis(1)
 
             jba = joystick.get_button(0)
             jbb = joystick.get_button(1)
+            jsl = joystick.get_button(8)
         else:
+            jht = (0, 0)
+
             jmx = 0.0
             jmy = 0.0
 
             jba = False
             jbb = False
+            jsl = False
             
         keys = pygame.key.get_pressed()
 
-        if keys[K_f]:
+        if keys[K_f] or jht == (0, 1):
             if not self.on_toggleflight:
                 self.toggleflight()
                 self.on_toggleflight = True
         else:
             self.on_toggleflight = False
 
-        self.sprint = keys[K_LSHIFT]
+        self.sprint = keys[K_LSHIFT] or jsl
 
         if not self.fly:
             self.crouching = keys[K_LCTRL] or jbb

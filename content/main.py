@@ -414,7 +414,7 @@ class VoxelWorld:
         self.svchunks    = set()
         self.dbgtags     = {}
         self.showhud     = True
-        self.showdebug   = True
+        self.showdebug   = False
         self.netclient   = None
         self.is_client   = False
         self._dcreq      = None
@@ -1063,21 +1063,44 @@ class VoxelWorld:
 
             if pygame.joystick.get_count() > 0:
                 joystick = pygame.joystick.Joystick(0)
+                jbuttons = joystick.get_numbuttons() - 1
             else:
                 joystick = None
-
+                jbuttons = 0
+            
             jname = "None" if joystick == None else joystick.get_name()
-            j0 = "0.00" if not joystick else round(joystick.get_axis(0), 2)
-            j1 = "0.00" if not joystick else round(joystick.get_axis(1), 2)
-            j2 = "0.00" if not joystick else round(joystick.get_axis(2), 2)
-            j3 = "0.00" if not joystick else round(joystick.get_axis(3), 2)
-            j4 = "0.00" if not joystick else round(joystick.get_axis(4), 2)
-            j5 = "0.00" if not joystick else round(joystick.get_axis(5), 2)
+
+            ja0 = "0.00" if not joystick else round(joystick.get_axis(0), 2)
+            ja1 = "0.00" if not joystick else round(joystick.get_axis(1), 2)
+            ja2 = "0.00" if not joystick else round(joystick.get_axis(2), 2)
+            ja3 = "0.00" if not joystick else round(joystick.get_axis(3), 2)
+            ja4 = "0.00" if not joystick else round(joystick.get_axis(4), 2)
+            ja5 = "0.00" if not joystick else round(joystick.get_axis(5), 2)
+
+            jb0 = "None" if not joystick or jbuttons < 0 else joystick.get_button(0)
+            jb1 = "None" if not joystick or jbuttons < 1 else joystick.get_button(1)
+            jb2 = "None" if not joystick or jbuttons < 2 else joystick.get_button(2)
+            jb3 = "None" if not joystick or jbuttons < 3 else joystick.get_button(3)
+            jb4 = "None" if not joystick or jbuttons < 4 else joystick.get_button(4)
+            jb5 = "None" if not joystick or jbuttons < 5 else joystick.get_button(5)
+            jb6 = "None" if not joystick or jbuttons < 6 else joystick.get_button(6)
+            jb7 = "None" if not joystick or jbuttons < 7 else joystick.get_button(7)
+            jb8 = "None" if not joystick or jbuttons < 8 else joystick.get_button(8)
+            jb9 = "None" if not joystick or jbuttons < 9 else joystick.get_button(9)
+            jb10 = "None" if not joystick or jbuttons < 10 else joystick.get_button(10)
+            jb11 = "None" if not joystick or jbuttons < 11 else joystick.get_button(11)
+            jb12 = "None" if not joystick or jbuttons < 12 else joystick.get_button(12)
+            jb13 = "None" if not joystick or jbuttons < 13 else joystick.get_button(13)
+            jb14 = "None" if not joystick or jbuttons < 14 else joystick.get_button(14)
+            jb15 = "None" if not joystick or jbuttons < 15 else joystick.get_button(15)
             
             stats = [
                      f"FPS: {fps:.1f}", "", 
                      f"Controller: {jname}",
-                     f"Controller Axis: 0={j0} 1={j1} 3={j3} 4={j4} 2={j2} 5={j5}",
+                     f"Controller Axis: 0={ja0} 1={ja1} 2={ja2} 3={ja3} 4={ja4} 5={ja5}",
+                     f"Controller Button: 0={jb0} 1={jb1} 2={jb2} 3={jb3} 4={jb4} 5={jb5}",
+                     f"Controller Button: 6={jb6} 7={jb7} 8={jb8} 9={jb9} 10={jb10}",
+                     f"Controller Button: 11={jb11} 12={jb12} 13={jb13} 14={jb14} 15={jb15}",
                      f"Position: ({fx:.1f}, {fy:.1f}, {fz:.1f})", 
                      f"Facing: {fdir} (yaw={yaw:.0f})",
                      f"Chunk: ({chx}, {chz})",
@@ -1102,8 +1125,9 @@ class VoxelWorld:
                 keybinds = [
                     "https://not-human.net",
                     "",
-                    "Down [LCtrl]",
-                    "Sprint [LShift]",
+                    "Up [Space] or [A]",
+                    "Down [LCtrl] or [B]",
+                    "Sprint [LShift] or [LSB]",
                     f"Move [{'Cam' if self.p.fcmove else 'Body'}] [C]",
                     f"Stick [{'ON' if self.p.fcstick else 'OFF'}] [V]",
                     "Exit [Shift+F5]",
@@ -1112,14 +1136,20 @@ class VoxelWorld:
                 keybinds = [
                     "https://not-human.net",
                     "",
-                    "Down [LCtrl]",
-                    "Sprint [LShift]",
-                    "Toggle Flight [F]",
-                    "Camera [F5]",
-                    f"Gamma [{gst}] [F4]",
-                    "Borders [F3]",
+                    "Attack [LMB] or [RT]",
+                    "Use/Place [RMB] or [LT]",
+                    "Jump/Up [Space] or [A]",
+                    "Sneak/Down [LCtrl] or [B]",
+                    "Sprint [LShift] or [LSB]",
+                    "Inventory [E] or [Y]",
+                    "Drop [Q] or [DPAD-D]",
+                    "Chat [T] or [DPAD-R]",
+                    "Flight [F] or [DPAD-U]",
                     "Fullscreen [F11]",
-                    "HUD [F1]",
+                    "Toggle HUD [F1]",
+                    "Toggle Debug [F3]",
+                    # f"Gamma [{gst}] [F4]",
+                    "Camera POV [F5]",
                 ]
 
             if self.showhud: self.hud.render(self.p)
