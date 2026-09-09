@@ -7,12 +7,13 @@ from lconst import (
     BTN_H, BTN_Y_NORMAL, BTN_SRC_W, BTN_SRC_H, ICON_H,
     SIGNAL_W, SIGNAL_H, SIGNAL_Y,
     PING_ANIM_X, PING_ANIM_W, PING_ANIM_H, PING_ANIM_Y,
-    RESOURCE_DIR, UI_DIR,
+    RESOURCE_DIR, UI_DIR, CONTENT_DIR,
     SPLASH_TEXTS, __VERSION__,
     WHITE, GRAY, YELLOW, RED, GREEN, BLACK
 )
 
 from lwidgets import Button, Icon, TextInput, ListWidget, nine_slice
+
 from ldata import (
     get_reasourceactive, set_reasourceactive,
     get_available, save_dir, getpname,
@@ -20,6 +21,8 @@ from ldata import (
     wolrdlist, svping, ms_signal
 )
 
+sys.path.insert(0, CONTENT_DIR)
+from config import FOV, RENDER_DIST, MS_SENSITIVITY, JS_SENSITIVITY
 
 class Screen:
     def __init__(self, launch):
@@ -97,6 +100,7 @@ class MenuScreen(Screen):
                 if   self.btn1.clk(mx, my): self.L.setscreen(WorldListScreen(self.L))
                 elif self.btn2.clk(mx, my): self.L.setscreen(ServerListScreen(self.L))
                 # elif self.btn3.clk(mx, my): self.L.setscreen(ResourcePackScreen(self.L))
+                elif self.btn4.clk(mx, my): self.L.setscreen(OptionsScreen(self.L))
                 elif self.btn5.clk(mx, my): self.L.running = False
                 elif self.musicPlayer.clk(mx, my): self.L.music = not self.L.music
                 
@@ -791,7 +795,6 @@ class ConfirmScreen(Screen):
         super().draw(surf)
 
 
-"""
 class OptionsScreen(Screen):
     def __init__(self, launch):
         super().__init__(launch)
@@ -801,14 +804,36 @@ class OptionsScreen(Screen):
         self.btn_sens  = self.btn_gui(cx - W//2, 146, W, f"Sensitivity: 1.0")
         self.btn_done  = self.btn_gui(cx - W//2, 220, W, "Done")
 
+        """
+        cx = WIN_W // 2; IW = 300 * GS
+        self.ti_fov = TextInput(
+            cx - IW//2, 100*GS, IW, 18*GS, self.bfont,
+            self.L.wd_surf, "FOV", str(FOV)
+        )
+        self.ti_fov.active = True
+        self.inputs = [self.ti_fov]
+        """
+
     def onevent(self, events):
         for e in events:
+            """
+            for ti in self.inputs:
+                r = ti.onevent(e)
+                if r == "enter": self.save(); return
+            """
+            
             if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
                 mx, my = e.pos
                 if self.btn_done.clk(mx, my): self.L.setscreen(MenuScreen(self.L))
+
+    """
+    def save(self):
+        # TODO: save everything to launch.cfg using ldata.py
+        raw  = self.ti_fov.text.strip()
+        safe = "".join(c for c in raw if c.isalnum() or c in " _-").strip()
+    """
 
     def draw(self, surf):
         t = self.bfont.render("Options", False, WHITE)
         surf.blit(t, ((WIN_W - t.get_width()) // 2, 8 * GS))
         super().draw(surf)
-"""
