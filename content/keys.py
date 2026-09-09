@@ -2,7 +2,7 @@ import pygame
 import threading
 import time
 from pygame.locals import *
-from config import SCL_HUD, WIN_W, WIN_H, JS_SMOOTHING
+from config import SCL_HUD, WIN_W, WIN_H, JS_SMOOTHING, JS_MOUSE_SPEED
 from entity.blockenty import itemblock
 from items.registry import REGISTRY, ItemStack
 
@@ -26,18 +26,24 @@ def onEvent(w, events):
 
             jht = joystick.get_hat(0)
 
+            jmx = joystick.get_axis(0)
+            jmy = joystick.get_axis(1)
             jtl = joystick.get_axis(4)
             jtr = joystick.get_axis(5)
 
+            jby = joystick.get_button(3)
             jbl = joystick.get_button(4)
             jbr = joystick.get_button(5)
             jmb = joystick.get_button(6)
         else:
             jht = (0, 0)
 
+            jmx = 0.0
+            jmy = 0.0
             jtl = -1.0
             jtr = -1.0
 
+            jby = False
             jbl = False
             jbr = False
             jmb = False
@@ -197,7 +203,7 @@ def onEvent(w, events):
                 w.showborder = not w.showborder
                 w.ui.chatmsg(f"Chunk Borders: {'ON' if w.showborder else 'OFF'}", color=(200, 200, 255))
 
-            elif i.key == K_e:
+            elif i.key == K_e or jby:
                 if w.oninv and w.ui.invbrwser._onsearch: continue
                 w.oninv = not w.oninv
                 if w.oninv:
@@ -294,6 +300,8 @@ def onEvent(w, events):
                             
 
         elif i.type == MOUSEBUTTONDOWN or i.type == pygame.JOYAXISMOTION:
+            if i.type != MOUSEBUTTONDOWN: i.button = 0
+
             # add a small delay between joystick events
             if i.type == pygame.JOYAXISMOTION:
                 now = pygame.time.get_ticks()
@@ -305,6 +313,12 @@ def onEvent(w, events):
 
             if w.oninv:
                 mx, my  = pygame.mouse.get_pos()
+
+                if i.type == pygame.JOYAXISMOTION:
+                    mx += jmx * JS_MOUSE_SPEED
+                    my += jmy * JS_MOUSE_SPEED
+                    pygame.mouse.set_pos(mx, my)
+                    
                 scale   = SCL_HUD
                 ww, wh  = 176 * scale, 166 * scale
                 ix, iy  = (WIN_W - ww) // 2, (WIN_H - wh) // 2

@@ -56,6 +56,7 @@ MS_SMOOTHING      = 0.5
 # joystick
 JS_SENSITIVITY    = 5.0
 JS_SMOOTHING      = 0.3
+JS_MOUSE_SPEED    = 40
 
 SV_PORT           = 25250
 SV_HOST           = "0.0.0.0"

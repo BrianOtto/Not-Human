@@ -45,8 +45,7 @@ class ItemBrowser:
 
 
     def maxscroll(self):
-        tr = (len(self.fitems) + self.cols - 1) // self.cols
-        return max(0, tr - self.rows)
+        return (self.maxpages() - 1) * self.rows
 
     def visitems(self):
         start = self.scroll * self.cols

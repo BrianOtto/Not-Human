@@ -38,6 +38,7 @@ class Screen:
         self.buttons = []
         self.inputs  = []
         self.icons  = []
+        self.jba = False
 
     def btn_gui(self, gx, gy, gw, text, enabled=True):
         b = Button(gx*GS, gy*GS, gw*GS, BTN_H, text, self.fontWidget, self.widgets, enabled=enabled)
@@ -56,6 +57,13 @@ class Screen:
     def onevent(self, events): pass
 
     def update(self, mx, my):
+        if pygame.joystick.get_count() > 0:
+            joystick = pygame.joystick.Joystick(0)
+
+            self.jba = joystick.get_button(0)
+        else:
+            self.jba = False
+            
         for btn in self.buttons: btn.update(mx, my)
         for ico in self.icons: ico.update(mx, my)
 
@@ -95,8 +103,8 @@ class MenuScreen(Screen):
 
     def onevent(self, events):
         for e in events:
-            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
-                mx, my = e.pos
+            if (e.type == pygame.MOUSEBUTTONDOWN and e.button == 1) or (e.type == pygame.JOYBUTTONDOWN and self.jba):
+                mx, my = pygame.mouse.get_pos()
                 if   self.btn1.clk(mx, my): self.L.setscreen(WorldListScreen(self.L))
                 elif self.btn2.clk(mx, my): self.L.setscreen(ServerListScreen(self.L))
                 # elif self.btn3.clk(mx, my): self.L.setscreen(ResourcePackScreen(self.L))
@@ -146,7 +154,6 @@ class MenuScreen(Screen):
         mcx  = (840 + WIN_W) // 2 
         mcy  = self.btn5.rect.bottom - int(sz * 0.35)
         
-
         mx, my = pygame.mouse.get_pos()
         nx  = max(-1.0, min(1.0, (mx - mcx) / 260.0))
         ny  = max(-1.0, min(1.0, (my - mcy) / 200.0))
@@ -190,15 +197,15 @@ class ResourcePackScreen(Screen):
 
     def onevent(self, events):
         for e in events:
-            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
-                mx, my = e.pos
+            if (e.type == pygame.MOUSEBUTTONDOWN and e.button == 1) or (e.type == pygame.JOYBUTTONDOWN and self.jba):
+                mx, my = pygame.mouse.get_pos()
                 self.lw._onclick(mx, my)
                 self._sync()
                 if   self.btn_select.clk(mx, my): self.select()
                 elif self.btn_folder.clk(mx, my): self.openf()
                 elif self.btn_done.clk(mx, my):   self.L.setscreen(MenuScreen(self.L))
 
-            if e.type == pygame.MOUSEBUTTONUP   and e.button == 1: self.lw.on_release()
+            if (e.type == pygame.MOUSEBUTTONUP and e.button == 1) or (e.type == pygame.JOYBUTTONUP and self.jba): self.lw.on_release()
             if e.type == pygame.MOUSEWHEEL: self.lw._onscroll(e.y)
             if e.type == pygame.KEYDOWN and e.key == pygame.K_ESCAPE:
                 self.L.setscreen(MenuScreen(self.L))
@@ -271,8 +278,8 @@ class WorldListScreen(Screen):
 
     def onevent(self, events):
         for e in events:
-            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
-                mx, my = e.pos
+            if (e.type == pygame.MOUSEBUTTONDOWN and e.button == 1) or (e.type == pygame.JOYBUTTONDOWN and self.jba):
+                mx, my = pygame.mouse.get_pos()
                 if self.lw.ondblclk(mx, my): self.play()
                 else: self.lw._onclick(mx, my)
                 self._sync()
@@ -283,7 +290,7 @@ class WorldListScreen(Screen):
                 elif self.btn_recreate.clk(mx, my): self.recreate()
                 elif self.btn_cancel.clk(mx, my):   self.L.setscreen(MenuScreen(self.L))
 
-            if e.type == pygame.MOUSEBUTTONUP and e.button == 1: self.lw.on_release()
+            if (e.type == pygame.MOUSEBUTTONUP and e.button == 1) or (e.type == pygame.JOYBUTTONUP and self.jba): self.lw.on_release()
             if e.type == pygame.MOUSEWHEEL: self.lw._onscroll(e.y)
 
             if e.type == pygame.KEYDOWN:
@@ -376,8 +383,8 @@ class CreateWorldScreen(Screen):
                 if r == "tab":   self._tabnext(ti); break
                 if r == "enter": self.create();     return
 
-            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
-                mx, my = e.pos
+            if (e.type == pygame.MOUSEBUTTONDOWN and e.button == 1) or (e.type == pygame.JOYBUTTONDOWN and self.jba):
+                mx, my = pygame.mouse.get_pos()
                 if   self.btn_create.clk(mx, my): self.create()
                 elif self.btn_cancel.clk(mx, my): self.L.setscreen(WorldListScreen(self.L))
 
@@ -430,8 +437,8 @@ class EditWorldScreen(Screen):
                 r = ti.onevent(e)
                 if r == "enter": self.save(); return
 
-            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
-                mx, my = e.pos
+            if (e.type == pygame.MOUSEBUTTONDOWN and e.button == 1) or (e.type == pygame.JOYBUTTONDOWN and self.jba):
+                mx, my = pygame.mouse.get_pos()
                 if   self.btn_done.clk(mx, my):   self.save()
                 elif self.btn_cancel.clk(mx, my): self.L.setscreen(WorldListScreen(self.L))
 
@@ -483,8 +490,8 @@ class ServerListScreen(Screen):
 
     def onevent(self, events):
         for e in events:
-            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
-                mx, my = e.pos
+            if (e.type == pygame.MOUSEBUTTONDOWN and e.button == 1) or (e.type == pygame.JOYBUTTONDOWN and self.jba):
+                mx, my = pygame.mouse.get_pos()
                 if self.lw.ondblclk(mx, my):
                     self.join()
                 else:
@@ -505,7 +512,7 @@ class ServerListScreen(Screen):
                 elif self.btn_refresh.clk(mx, my): self.refresh(force=True)
                 elif self.btn_cancel.clk(mx, my):  self.L.setscreen(MenuScreen(self.L))
 
-            if e.type == pygame.MOUSEBUTTONUP and e.button == 1: self.lw.on_release()
+            if (e.type == pygame.MOUSEBUTTONUP and e.button == 1) or (e.type == pygame.JOYBUTTONUP and self.jba): self.lw.on_release()
             if e.type == pygame.MOUSEWHEEL: self.lw._onscroll(e.y)
 
             if e.type == pygame.KEYDOWN:
@@ -671,8 +678,8 @@ class DirectConnectScreen(Screen):
                 r = ti.onevent(e)
                 if r == "enter": self.join(); return
 
-            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
-                mx, my = e.pos
+            if (e.type == pygame.MOUSEBUTTONDOWN and e.button == 1) or (e.type == pygame.JOYBUTTONDOWN and self.jba):
+                mx, my = pygame.mouse.get_pos()
                 if   self.btn_join.clk(mx, my):   self.join()
                 elif self.btn_cancel.clk(mx, my): self.L.setscreen(ServerListScreen(self.L))
 
@@ -720,8 +727,8 @@ class AddEditServerScreen(Screen):
                 if r == "tab":   self._tabnext(ti); break
                 if r == "enter": self.save();       return
 
-            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
-                mx, my = e.pos
+            if (e.type == pygame.MOUSEBUTTONDOWN and e.button == 1) or (e.type == pygame.JOYBUTTONDOWN and self.jba):
+                mx, my = pygame.mouse.get_pos()
                 if   self.btn_done.clk(mx, my):   self.save()
                 elif self.btn_cancel.clk(mx, my): self.L.setscreen(ServerListScreen(self.L))
 
@@ -763,8 +770,8 @@ class ConfirmScreen(Screen):
 
     def onevent(self, events):
         for e in events:
-            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
-                mx, my = e.pos
+            if (e.type == pygame.MOUSEBUTTONDOWN and e.button == 1) or (e.type == pygame.JOYBUTTONDOWN and self.jba):
+                mx, my = pygame.mouse.get_pos()
                 if   self.btn_yes.clk(mx, my): self.on_yes()
                 elif self.btn_no.clk(mx, my):  self.on_no()
 
@@ -822,8 +829,8 @@ class OptionsScreen(Screen):
                 if r == "enter": self.save(); return
             """
             
-            if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1:
-                mx, my = e.pos
+            if (e.type == pygame.MOUSEBUTTONDOWN and e.button == 1) or (e.type == pygame.JOYBUTTONDOWN and self.jba):
+                mx, my = pygame.mouse.get_pos()
                 if self.btn_done.clk(mx, my): self.L.setscreen(MenuScreen(self.L))
 
     """

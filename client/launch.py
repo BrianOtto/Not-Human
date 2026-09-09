@@ -20,17 +20,16 @@ from lplayer  import MiniPlayer
 sys.path.insert(0, UI_DIR)
 from bfont import Font
 
+sys.path.insert(0, CONTENT_DIR)
+from config import JS_MOUSE_SPEED
+
 from lscreens import MenuScreen
-
-
 
 def setsaves(wname):
     os.makedirs(SAVES_DIR, exist_ok=True)
     cdir = os.path.join(SAVES_DIR, wname, "cache")
     os.makedirs(cdir, exist_ok=True)
     os.environ["NUMBA_CACHE_DIR"] = cdir
-
-
 
 
 class LoadingLog:
@@ -44,8 +43,6 @@ class LoadingLog:
         self.lines.append((text, color))
         if len(self.lines) > self.MAX_LINES * 2:
             self.lines = self.lines[-self.MAX_LINES:]
-            
-            
 
     def draw(self, surf):
         cx = 5
@@ -58,8 +55,6 @@ class LoadingLog:
             cy -= h + 2
 
 
-
-
 class onLoadHandler(logging.Handler):
     COLORS = {
         logging.DEBUG:    (150, 150, 150),
@@ -68,7 +63,6 @@ class onLoadHandler(logging.Handler):
         logging.ERROR:    (255, 80,  80),
         logging.CRITICAL: (255, 50,  50),
     }
-    
 
     def __init__(self, log_ui):
         super().__init__(logging.INFO)
@@ -78,10 +72,6 @@ class onLoadHandler(logging.Handler):
     def emit(self, record):
         col = self.COLORS.get(record.levelno, (200, 200, 200))
         self.log_ui.add(self.format(record), col)
-
-
-
-
 
 
 class Launcher:
@@ -337,20 +327,32 @@ class Launcher:
 
     def run(self):
         while self.running:
+            if pygame.joystick.get_count() > 0:
+                joystick = pygame.joystick.Joystick(0)
+    
+                jmx = joystick.get_axis(0)
+                jmy = joystick.get_axis(1)
+            else:
+                jmx = 0.0
+                jmy = 0.0
+
+            mx, my = pygame.mouse.get_pos()
             events = pygame.event.get()
 
             for i in events:
                 if i.type == pygame.QUIT: self.running = False
+                if i.type == pygame.JOYAXISMOTION:
+                    mx += jmx # * JS_MOUSE_SPEED
+                    my += jmy # * JS_MOUSE_SPEED
+                    pygame.mouse.set_pos(mx, my)
 
             if pygame.mixer.get_init():
                 if self.music:
                     if not pygame.mixer.music.get_busy():
                         pygame.mixer.music.unpause()
                 else:
-                    pygame.mixer.music.pause()
-                
-            mx, my = pygame.mouse.get_pos()
-            # print(mx, my)
+                    pygame.mixer.music.pause()            
+            
             self._screen.update(mx, my)
             self._screen.onevent(events)
             self.drawbg()
