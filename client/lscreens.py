@@ -27,7 +27,7 @@ from config import FOV, RENDER_DIST, MS_SENSITIVITY, JS_SENSITIVITY
 class Screen:
     def __init__(self, launch):
         self.L       = launch
-        self.bfont   = launch.bfont
+        self.font   = launch.font
         self.fontIcon = launch.fontIcon
         self.fontIconSolid = launch.fontIconSolid
         self.fontText = launch.fontText
@@ -45,7 +45,7 @@ class Screen:
         self.buttons.append(b); return b
 
     def btn_px(self, x, y, w, text, enabled=True):
-        b = Button(x, y, w, BTN_H, text, self.bfont, self.widgets, enabled=enabled)
+        b = Button(x, y, w, BTN_H, text, self.font, self.widgets, enabled=enabled)
         self.buttons.append(b); return b
 
     def _tabnext(self, current):
@@ -131,7 +131,7 @@ class MenuScreen(Screen):
         t      = time.time() - self._splash_start
         wob    = abs(math.sin(t * 2.5))
         sf     = 1.0 + 0.08 * wob
-        ss     = self.bfont.render(self._splash, False, YELLOW)
+        ss     = self.font.render(self._splash, False, YELLOW)
         sw     = int(ss.get_width()  * sf)
         sh     = int(ss.get_height() * sf)
         sc     = pygame.transform.rotate(pygame.transform.scale(ss, (sw, sh)), 15)
@@ -161,7 +161,7 @@ class MenuScreen(Screen):
         pitch = -ny * 28.0
 
         nm = getpname()
-        t  = self.bfont.render(nm, False, WHITE)
+        t  = self.font.render(nm, False, WHITE)
         surf.blit(t, (mcx - t.get_width() // 2, mcy - sz // 2 - t.get_height()))
 
         ps = mini.render(yaw, pitch)
@@ -172,7 +172,7 @@ class ResourcePackScreen(Screen):
     def __init__(self, launch):
         super().__init__(launch)
         self.lw = ListWidget(
-            self.bfont, launch.ico_surf, launch.ss_surf,
+            self.font, launch.ico_surf, launch.ss_surf,
             wd_surf=launch.wd_surf
         )
         self.refresh()
@@ -225,26 +225,26 @@ class ResourcePackScreen(Screen):
         self.lw.update(mx, my)
 
     def draw(self, surf):
-        t = self.bfont.render("Resource Packs", False, WHITE)
+        t = self.font.render("Resource Packs", False, WHITE)
         surf.blit(t, ((WIN_W - t.get_width()) // 2, 8 * GS))
         active = get_reasourceactive()
         self.lw.draw(surf, lambda s, it, x, y, w: self._drawentry(s, it, x, y, w, active))
         super().draw(surf)
 
     def _drawentry(self, surf, item, x, y, w, active_folder):
-        lh  = self.bfont.get_height()
+        lh  = self.font.get_height()
         ty  = y + ENTRY_PAD
         nm  = item["name"]
         act = item["folder"] == active_folder
         if act: nm += "  [Active]"
-        surf.blit(self.bfont.render(nm, False, GREEN if act else WHITE), (x, ty))
+        surf.blit(self.font.render(nm, False, GREEN if act else WHITE), (x, ty))
 
         if item["description"]:
-            surf.blit(self.bfont.render(item["description"], False, GRAY), (x, ty + lh))
+            surf.blit(self.font.render(item["description"], False, GRAY), (x, ty + lh))
 
         info = f"by {item['author']}"
         if item["version"]: info += f"  v{item['version']}"
-        surf.blit(self.bfont.render(info, False, GRAY), (x, ty + lh * 2))
+        surf.blit(self.font.render(info, False, GRAY), (x, ty + lh * 2))
 
 
 
@@ -253,7 +253,7 @@ class WorldListScreen(Screen):
     def __init__(self, launch):
         super().__init__(launch)
         self.lw = ListWidget(
-            self.bfont, launch.ico_surf, launch.ss_surf,
+            self.font, launch.ico_surf, launch.ss_surf,
             wd_surf=launch.wd_surf
         )
         self.refresh()
@@ -342,18 +342,18 @@ class WorldListScreen(Screen):
         self.lw.update(mx, my)
 
     def draw(self, surf):
-        t = self.bfont.render("Select World", False, WHITE)
+        t = self.font.render("Select World", False, WHITE)
         surf.blit(t, ((WIN_W - t.get_width()) // 2, 8 * GS))
         self.lw.draw(surf, self._drawentry)
         super().draw(surf)
 
     def _drawentry(self, surf, item, x, y, w):
-        lh = self.bfont.get_height()
+        lh = self.font.get_height()
         ty = y + ENTRY_PAD
-        surf.blit(self.bfont.render(item["nm"], False, WHITE), (x, ty))
-        surf.blit(self.bfont.render(f"{item['nm']}  ({item['size_kb']} KB)", False, GRAY), (x, ty + lh))
+        surf.blit(self.font.render(item["nm"], False, WHITE), (x, ty))
+        surf.blit(self.font.render(f"{item['nm']}  ({item['size_kb']} KB)", False, GRAY), (x, ty + lh))
         lp = item.get("last_played", "")
-        if lp: surf.blit(self.bfont.render(lp, False, GRAY), (x, ty + lh * 2))
+        if lp: surf.blit(self.font.render(lp, False, GRAY), (x, ty + lh * 2))
 
 
 
@@ -363,12 +363,12 @@ class CreateWorldScreen(Screen):
         super().__init__(launch)
         cx = WIN_W // 2; IW = 300 * GS
         self.ti_name = TextInput(
-            cx - IW//2, 110*GS, IW, 18*GS, self.bfont,
+            cx - IW//2, 110*GS, IW, 18*GS, self.font,
             self.L.wd_surf, "World Name", "New World"
         )
         self.ti_name.active = True
         self.ti_seed = TextInput(
-            cx - IW//2, 160*GS, IW, 18*GS, self.bfont,
+            cx - IW//2, 160*GS, IW, 18*GS, self.font,
             self.L.wd_surf, "Seed (default=12345)"
         )
         self.inputs = [self.ti_name, self.ti_seed]
@@ -409,7 +409,7 @@ class CreateWorldScreen(Screen):
         self.L.bootworld(safe, seed=seed)
 
     def draw(self, surf):
-        t = self.bfont.render("Create New World", False, WHITE)
+        t = self.font.render("Create New World", False, WHITE)
         surf.blit(t, ((WIN_W - t.get_width()) // 2, 60 * GS))
         super().draw(surf)
 
@@ -422,7 +422,7 @@ class EditWorldScreen(Screen):
         self.info = info
         cx = WIN_W // 2; IW = 300 * GS
         self.ti_name = TextInput(
-            cx - IW//2, 140*GS, IW, 18*GS, self.bfont,
+            cx - IW//2, 140*GS, IW, 18*GS, self.font,
             self.L.wd_surf, "World Name", info["nm"]
         )
         self.ti_name.active = True
@@ -454,7 +454,7 @@ class EditWorldScreen(Screen):
         self.L.setscreen(WorldListScreen(self.L))
 
     def draw(self, surf):
-        t = self.bfont.render("Edit World", False, WHITE)
+        t = self.font.render("Edit World", False, WHITE)
         surf.blit(t, ((WIN_W - t.get_width()) // 2, 80 * GS))
         super().draw(surf)
 
@@ -466,7 +466,7 @@ class ServerListScreen(Screen):
         super().__init__(launch)
         self.servers = load_servers()
         self.lw = ListWidget(
-            self.bfont, launch.ico_surf, launch.ss_surf,
+            self.font, launch.ico_surf, launch.ss_surf,
             icos_surf=launch.icos_surf, wd_surf=launch.wd_surf
         )
         self.lw.set_items(self.servers)
@@ -595,29 +595,29 @@ class ServerListScreen(Screen):
         if time.time() - self._last_refresh >= 5.0: self.refresh()
 
     def draw(self, surf):
-        t = self.bfont.render("Multiplayer", False, WHITE)
+        t = self.font.render("Multiplayer", False, WHITE)
         surf.blit(t, ((WIN_W - t.get_width()) // 2, 8 * GS))
         self.lw.draw(surf, self._drawentry)
         super().draw(surf)
 
     def _drawentry(self, surf, item, x, y, w):
-        lh = self.bfont.get_height()
+        lh = self.font.get_height()
         ty = y + ENTRY_PAD
-        surf.blit(self.bfont.render(item.get("name", "Server"), False, WHITE), (x, ty))
+        surf.blit(self.font.render(item.get("name", "Server"), False, WHITE), (x, ty))
 
         ps = item.get("_ping_state", "")
 
         if ps == "pinging":
             dots = "." * (1 + int(time.time() * 3) % 3)
-            surf.blit(self.bfont.render(f"Pinging{dots}", False, GRAY), (x, ty + lh))
+            surf.blit(self.font.render(f"Pinging{dots}", False, GRAY), (x, ty + lh))
         elif ps == "fail":
-            surf.blit(self.bfont.render(item.get("status", "Can't connect"), False, RED), (x, ty + lh))
+            surf.blit(self.font.render(item.get("status", "Can't connect"), False, RED), (x, ty + lh))
         else:
             for i, ml in enumerate(item.get("status", "").split("\n")[:2]):
                 c = GREEN if ps == "ok" else GRAY
-                surf.blit(self.bfont.render(ml, False, c), (x, ty + lh * (i + 1)))
+                surf.blit(self.font.render(ml, False, c), (x, ty + lh * (i + 1)))
 
-        surf.blit(self.bfont.render(item.get("address", ""), False, GRAY), (x, ty + lh * 3))
+        surf.blit(self.font.render(item.get("address", ""), False, GRAY), (x, ty + lh * 3))
 
         rx    = x + w - ENTRY_PAD
         it    = ty
@@ -646,9 +646,9 @@ class ServerListScreen(Screen):
         if ps == "pinging":
             a  = item.get("_ping_attempt", 0)
             rt = item.get("_ping_retries", 3)
-            rt_surf = self.bfont.render(f"({a}/{rt})", False, GRAY)
+            rt_surf = self.font.render(f"({a}/{rt})", False, GRAY)
         elif item.get("players"):
-            rt_surf = self.bfont.render(str(item["players"]), False, GRAY)
+            rt_surf = self.font.render(str(item["players"]), False, GRAY)
         else:
             rt_surf = None
 
@@ -663,7 +663,7 @@ class DirectConnectScreen(Screen):
         super().__init__(launch)
         cx = WIN_W // 2; IW = 300 * GS
         self.ti_addr = TextInput(
-            cx - IW//2, 150*GS, IW, 18*GS, self.bfont,
+            cx - IW//2, 150*GS, IW, 18*GS, self.font,
             self.L.wd_surf, "Server Address", "localhost:25250"
         )
         self.ti_addr.active = True
@@ -691,7 +691,7 @@ class DirectConnectScreen(Screen):
         if addr: self.L.bootsv(addr)
 
     def draw(self, surf):
-        t = self.bfont.render("Direct Connect", False, WHITE)
+        t = self.font.render("Direct Connect", False, WHITE)
         surf.blit(t, ((WIN_W - t.get_width()) // 2, 90 * GS))
         super().draw(surf)
 
@@ -705,13 +705,13 @@ class AddEditServerScreen(Screen):
         self.editing = info is not None
         cx = WIN_W // 2; IW = 300 * GS
         self.ti_name = TextInput(
-            cx - IW//2, 110*GS, IW, 18*GS, self.bfont,
+            cx - IW//2, 110*GS, IW, 18*GS, self.font,
             self.L.wd_surf, "Server Name",
             info["name"] if info else "Minecraft Server"
         )
         self.ti_name.active = True
         self.ti_addr = TextInput(
-            cx - IW//2, 160*GS, IW, 18*GS, self.bfont,
+            cx - IW//2, 160*GS, IW, 18*GS, self.font,
             self.L.wd_surf, "Server Address",
             info["address"] if info else "localhost:25250"
         )
@@ -750,7 +750,7 @@ class AddEditServerScreen(Screen):
         self.L.setscreen(ServerListScreen(self.L))
 
     def draw(self, surf):
-        t = self.bfont.render("Edit Server" if self.editing else "Add Server", False, WHITE)
+        t = self.font.render("Edit Server" if self.editing else "Add Server", False, WHITE)
         surf.blit(t, ((WIN_W - t.get_width()) // 2, 60 * GS))
         super().draw(surf)
 
@@ -794,9 +794,9 @@ class ConfirmScreen(Screen):
         bg.blit(dk, (0, 0))
         surf.blit(nine_slice(bg, dw, dh), (dx, dy))
 
-        t1 = self.bfont.render(self.line1, False, YELLOW)
+        t1 = self.font.render(self.line1, False, YELLOW)
         surf.blit(t1, (dx + (dw - t1.get_width())//2, dy + 15*GS))
-        t2 = self.bfont.render(self.line2, False, WHITE)
+        t2 = self.font.render(self.line2, False, WHITE)
         surf.blit(t2, (dx + (dw - t2.get_width())//2, dy + 15*GS + t1.get_height() + 6*GS))
 
         super().draw(surf)
@@ -814,7 +814,7 @@ class OptionsScreen(Screen):
         """
         cx = WIN_W // 2; IW = 300 * GS
         self.ti_fov = TextInput(
-            cx - IW//2, 100*GS, IW, 18*GS, self.bfont,
+            cx - IW//2, 100*GS, IW, 18*GS, self.font,
             self.L.wd_surf, "FOV", str(FOV)
         )
         self.ti_fov.active = True
@@ -841,6 +841,6 @@ class OptionsScreen(Screen):
     """
 
     def draw(self, surf):
-        t = self.bfont.render("Options", False, WHITE)
+        t = self.font.render("Options", False, WHITE)
         surf.blit(t, ((WIN_W - t.get_width()) // 2, 8 * GS))
         super().draw(surf)

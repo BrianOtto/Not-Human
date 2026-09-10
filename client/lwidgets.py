@@ -177,11 +177,11 @@ class ProgressBar:
 
 class TextInput:
     def __init__(
-        self, x, y, w, h, bfont,
+        self, x, y, w, h, font,
         widgets=None, label="", default="", max_len=60
     ):
         self.rect    = pygame.Rect(x, y, w, h)
-        self.bfont   = bfont
+        self.font   = font
         self.widgets = widgets
         self.label   = label
         self.text    = default
@@ -205,7 +205,7 @@ class TextInput:
 
     def draw(self, surf):
         if self.label:
-            lbl = self.bfont.render(self.label, False, GRAY)
+            lbl = self.font.render(self.label, False, GRAY)
             surf.blit(lbl, (self.rect.x, self.rect.y - lbl.get_height() - 4))
 
         if self._bg:
@@ -223,7 +223,7 @@ class TextInput:
 
         self._blink = (self._blink + 1) % 60
         cur = "_" if self.active and self._blink < 30 else ""
-        txt = self.bfont.render(self.text + cur, False, WHITE)
+        txt = self.font.render(self.text + cur, False, WHITE)
         ty  = self.rect.y + (self.rect.h - txt.get_height()) // 2
         surf.blit(txt, (self.rect.x + 6, ty))
         
@@ -253,10 +253,10 @@ class TextInput:
 
 class ListWidget:
     def __init__(
-        self, bfont, ico_surf, ss_surf,
+        self, font, ico_surf, ss_surf,
         icos_surf=None, wd_surf=None
     ):
-        self.bfont        = bfont
+        self.font        = font
         self.ico_surf     = ico_surf
         self.ss_surf      = ss_surf
         self.icos_surf    = icos_surf
@@ -500,7 +500,7 @@ class ListWidget:
                     
                     
 
-            tx = ix + ICON_SZ + ENTRY_PAD
+            tx = ix + ICON_SZ + ENTRY_PAD + 10
             tw = ew - (tx - ex)
             render_fn(surf, self.items[i], tx, ey, tw)
 

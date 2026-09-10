@@ -18,8 +18,6 @@ from lwidgets import nine_slice  # noqa
 from lplayer  import MiniPlayer
 
 sys.path.insert(0, UI_DIR)
-from bfont import Font
-
 sys.path.insert(0, CONTENT_DIR)
 from config import JS_MOUSE_SPEED
 
@@ -35,8 +33,8 @@ def setsaves(wname):
 class LoadingLog:
     MAX_LINES = 12
 
-    def __init__(self, bfont):
-        self.bfont = bfont
+    def __init__(self, font):
+        self.font = font
         self.lines = []
 
     def add(self, text, color=WHITE):
@@ -48,7 +46,7 @@ class LoadingLog:
         cx = 5
         cy = WIN_H - 5
         for text, color in reversed(self.lines[-self.MAX_LINES:]):
-            txt  = self.bfont.render(text, False, color)
+            txt  = self.font.render(text, False, color)
             w, h = txt.get_size()
             pygame.draw.rect(surf, (0, 0, 0, 100), (cx-2, cy-h-2, w+4, h+4))
             surf.blit(txt, (cx, cy - h))
@@ -101,7 +99,7 @@ class Launcher:
 
 
     def loadassets(self):
-        self.bfont   = Font(os.path.join(UI_DIR, "font.png"), scale=GS)
+        self.font   = pygame.font.Font(os.path.join(FONTS_DIR, "OpenSans-Bold.ttf"), 18)
         self.fontIcon = pygame.font.Font(os.path.join(FONTS_DIR, "FontAwesome-Regular.otf"), 18)
         self.fontIconSolid = pygame.font.Font(os.path.join(FONTS_DIR, "FontAwesome-Solid.otf"), 18)
         self.fontText = pygame.font.Font(os.path.join(FONTS_DIR, "OpenSans-Regular.ttf"), 18)
@@ -185,14 +183,14 @@ class Launcher:
 
 
     def bootworld(self, wname, seed=None):
-        log = LoadingLog(self.bfont)
+        log = LoadingLog(self.font)
         log.add(f"Loading world '{wname}'...", GRAY)
         self.drawloading(log)
         self.rungame(wname=wname, seed=seed, log=log)
 
 
     def bootsv(self, address):
-        log = LoadingLog(self.bfont)
+        log = LoadingLog(self.font)
         log.add(f"Connecting to {address}...", GRAY)
         self.drawloading(log)
         self.rungame(svaddr=address, log=log)
@@ -318,8 +316,6 @@ class Launcher:
 
 
     def restore(self):
-        Font.font_surf = None
-        Font.char_ws  = None
         self.screen = pygame.display.set_mode((WIN_W, WIN_H))
         pygame.display.set_caption(WINDOW_TITLE)
         pygame.mouse.set_visible(True)
