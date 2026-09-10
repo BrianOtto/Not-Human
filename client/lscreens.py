@@ -108,7 +108,7 @@ class MenuScreen(Screen):
                 if   self.btn1.clk(mx, my): self.L.setscreen(WorldListScreen(self.L))
                 elif self.btn2.clk(mx, my): self.L.setscreen(ServerListScreen(self.L))
                 # elif self.btn3.clk(mx, my): self.L.setscreen(ResourcePackScreen(self.L))
-                elif self.btn4.clk(mx, my): self.L.setscreen(OptionsScreen(self.L))
+                # elif self.btn4.clk(mx, my): self.L.setscreen(OptionsScreen(self.L))
                 elif self.btn5.clk(mx, my): self.L.running = False
                 elif self.musicPlayer.clk(mx, my): self.L.music = not self.L.music
                 

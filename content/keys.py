@@ -31,6 +31,9 @@ def onEvent(w, events):
             jtl = joystick.get_axis(4)
             jtr = joystick.get_axis(5)
 
+            jba = joystick.get_button(0)
+            jbb = joystick.get_button(1)
+            jbx = joystick.get_button(2)
             jby = joystick.get_button(3)
             jbl = joystick.get_button(4)
             jbr = joystick.get_button(5)
@@ -43,6 +46,9 @@ def onEvent(w, events):
             jtl = -1.0
             jtr = -1.0
 
+            jba = False
+            jbb = False
+            jbx = False
             jby = False
             jbl = False
             jbr = False
@@ -54,6 +60,7 @@ def onEvent(w, events):
             if i.key == K_TAB or jmb:
                 w.tabdown = True
                 continue
+        
         if i.type == KEYUP or i.type == JOYBUTTONUP:
             if i.type != KEYUP: i.key = 0
 
@@ -107,8 +114,6 @@ def onEvent(w, events):
                     if browser.ontext(i.text):
                         continue
 
-
-
         if i.type == KEYUP or i.type == JOYHATMOTION:
             if i.type != KEYUP: i.key = 0
 
@@ -119,21 +124,19 @@ def onEvent(w, events):
                 pygame.mouse.set_visible(True)
                 continue
 
-        if i.type == KEYDOWN or i.type == JOYHATMOTION or i.type == JOYBUTTONDOWN:
+        if (i.type == KEYDOWN or i.type == JOYHATMOTION or 
+                (i.type == JOYBUTTONDOWN and not jba and not jbb)):
             if i.type != KEYDOWN: i.key = 0
 
             if i.key == K_t: continue
-                
-                
+            
             if i.key == K_SLASH and not w.oninv:
                 w.onchat = True
                 w.ibuff = "/"
                 pygame.event.set_grab(False)
                 pygame.mouse.set_visible(True)
                 continue
-                
-                
-
+            
             if i.key == K_ESCAPE:
                 if w.oninv:
                     w.oninv = False
@@ -205,7 +208,9 @@ def onEvent(w, events):
 
             elif i.key == K_e or jby:
                 if w.oninv and w.ui.invbrwser._onsearch: continue
+
                 w.oninv = not w.oninv
+
                 if w.oninv:
                     w.p.vel[0] = 0.0
                     w.p.vel[2] = 0.0
@@ -299,8 +304,10 @@ def onEvent(w, events):
                             
                             
 
-        elif i.type == MOUSEBUTTONDOWN or i.type == pygame.JOYAXISMOTION:
+        elif i.type == MOUSEBUTTONDOWN or i.type == pygame.JOYBUTTONDOWN or i.type == pygame.JOYAXISMOTION:
             if i.type != MOUSEBUTTONDOWN: i.button = 0
+            if i.type == JOYBUTTONDOWN and jba: i.button = 1
+            if i.type == JOYBUTTONDOWN and jbb: i.button = 3
 
             # add a small delay between joystick events
             if i.type == pygame.JOYAXISMOTION:
@@ -324,29 +331,30 @@ def onEvent(w, events):
                 ix, iy  = (WIN_W - ww) // 2, (WIN_H - wh) // 2
                 browser = w.ui.invbrwser
                 ctrl    = pygame.key.get_mods() & KMOD_CTRL
-                
-                if browser.onclick(mx, my, i.button, ctrl):
-                    if browser._heldstack:
+
+                if i.button > 0:
+                    if browser.onclick(mx, my, i.button, ctrl):
+                        if browser._heldstack:
+                            
+                            w.p.inv._held = browser._heldstack
+                            browser._heldstack = None
+
+                    else:
+                        clk = w.p.inv.onclick(mx, my, ix, iy, scale, i.button)
                         
-                        w.p.inv._held = browser._heldstack
-                        browser._heldstack = None
+                        if not clk and w.p.inv._held:
+                            held = w.p.inv._held
+                            w.p.inv._held = None
+                            eye = w.p.eyepos()
+                            td  = w.p.cam.front.copy()
+                            pos = eye + td * 0.5
 
-                else:
-                    clk = w.p.inv.onclick(mx, my, ix, iy, scale, i.button)
-                    
-                    if not clk and w.p.inv._held:
-                        held = w.p.inv._held
-                        w.p.inv._held = None
-                        eye = w.p.eyepos()
-                        td  = w.p.cam.front.copy()
-                        pos = eye + td * 0.5
+                            if w.netclient and w.netclient.isconn():
+                                vel = td * 3.0
+                                vel[1] += 2.0
+                                w.netclient.senddrop(held.item.itemId, held.count, pos, vel)
 
-                        if w.netclient and w.netclient.isconn():
-                            vel = td * 3.0
-                            vel[1] += 2.0
-                            w.netclient.senddrop(held.item.itemId, held.count, pos, vel)
-
-                        else: w.itementys.spawn(held.item.itemId, held.count, pos, td)
+                            else: w.itementys.spawn(held.item.itemId, held.count, pos, td)
 
             elif pygame.event.get_grab() or pygame.joystick.get_init():
                 if i.type != MOUSEBUTTONDOWN: i.button = 0

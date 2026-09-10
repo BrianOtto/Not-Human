@@ -13,15 +13,13 @@ import _respath
 from world.isorender import get_itemicon_anim
 
 CTRLS_TXT = [
-    "[Q] drop",
-    "[CTRL+Q] drop stack",
-    "[DEL] delete slot",
-    "[SHIFT+CTRL+DEL] clear all",
-    "[N]/[M] browser page",
+    "[Q] or [DPAD-D] Drop",
+    "[CTRL+Q] Drop Stack",
+    "[LMB] or [A] Pick Up Stack",
+    "[RMB] or [B] Pick Up One",
+    # "[DEL] Delete Slot",
+    # "[SHIFT + CTRL + DEL] Clear All",
 ]
-
-
-
 
 class UIManager:
     def __init__(self, ctx, screen_sz=(1280, 720)):

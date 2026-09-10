@@ -86,6 +86,10 @@ class Launcher:
         pygame.display.set_icon(ico)
         pygame.display.set_caption(WINDOW_TITLE)
 
+        # grab the mouse for the joystick and then release
+        pygame.event.set_grab(True)
+        pygame.event.set_grab(False)
+
         self.loadassets()
         setpname(getpname())   # make sure name.txt exists for easy access
         self.mini        = MiniPlayer(os.path.join(RESOURCE_DIR, "player", "skin.png"))
@@ -342,10 +346,12 @@ class Launcher:
             for i in events:
                 if i.type == pygame.QUIT: self.running = False
                 if i.type == pygame.JOYAXISMOTION:
-                    mx += jmx # * JS_MOUSE_SPEED
-                    my += jmy # * JS_MOUSE_SPEED
-                    pygame.mouse.set_pos(mx, my)
-
+                    mxNew = mx + jmx; myNew = my + jmy
+                    if (mxNew >= 0 and mxNew <= self.screen.get_width() and 
+                        myNew >= 0 and myNew <= self.screen.get_height()):
+                        mx = mxNew; my = myNew
+                        pygame.mouse.set_pos(mx, my)
+            
             if pygame.mixer.get_init():
                 if self.music:
                     if not pygame.mixer.music.get_busy():

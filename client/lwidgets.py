@@ -231,8 +231,8 @@ class TextInput:
         
 
     def onevent(self, ev):
-        if ev.type == pygame.MOUSEBUTTONDOWN:
-            self.active = self.rect.collidepoint(ev.pos)
+        if ev.type == pygame.MOUSEBUTTONDOWN or ev.type == pygame.JOYBUTTONDOWN:
+            self.active = self.rect.collidepoint(pygame.mouse.get_pos())
 
         if not self.active:
             return None

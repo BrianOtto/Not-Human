@@ -1,7 +1,7 @@
 import pygame
+
 from items.registry import REGISTRY, ItemStack
 from world.isorender import get_itemicon_anim
-
 
 class ItemBrowser:
     def __init__(self):
@@ -37,12 +37,10 @@ class ItemBrowser:
 
         self.refresh()
 
-
     def refresh(self):
         self.fitems = REGISTRY.search(self.query) if self.query else REGISTRY.getall()
         ms = self.maxscroll()
         if self.scroll > ms: self.scroll = max(0, ms)
-
 
     def maxscroll(self):
         return (self.maxpages() - 1) * self.rows
@@ -55,9 +53,6 @@ class ItemBrowser:
         tr = (len(self.fitems) + self.cols - 1) // self.cols
         tp = (tr + self.rows - 1) // self.rows if self.rows > 0 else 1
         return max(1, tp)
-        
-        
-        
 
     @property
     def page(self):
@@ -66,16 +61,9 @@ class ItemBrowser:
     @page.setter
     def page(self, val):
         self.scroll = val * self.rows
-        
 
     def next_page(self): self.scroll = min(self.scroll + self.rows, self.maxscroll())
     def prev_page(self): self.scroll = max(0, self.scroll - self.rows)
-
-
-
-
-
-
 
     def setpos(self, inv_x, inv_y, inv_w, inv_h, scale, screen_sz=None):
         self.scale = scale
@@ -110,10 +98,6 @@ class ItemBrowser:
         self.search_y = self.grid_y + self.rows * cpx + marg
         self.search_w = gw
         self.search_h = srh
-        
-        
-        
-
 
     def update(self, mx, my):
         self.hovi = -1
@@ -127,9 +111,6 @@ class ItemBrowser:
         if 0 <= col < self.cols and 0 <= row < self.rows:
             idx = row * self.cols + col
             if idx < len(self.visitems()): self.hovi = idx
-            
-            
-
 
     def ingrid(self, mx, my):
         gw = self.cols * self.cell_size * self.scale
@@ -151,19 +132,14 @@ class ItemBrowser:
             self.search_y <= my < self.search_y + self.search_h
         )
 
-
     def onclick(self, mx, my, button, ctrl_held=False):
         if not self.inpanel(mx, my):
             self._onsearch = False
             return False
-            
 
         if self.insearch(mx, my):
             self._onsearch = True
             return True
-            
-            
-            
 
         self._onsearch = False
 
@@ -177,11 +153,9 @@ class ItemBrowser:
 
         return True
 
-
     def onscroll(self, direction):
         if direction > 0: self.scroll = max(0, self.scroll - 1)
         else: self.scroll = min(self.maxscroll(), self.scroll + 1)
-
 
     def onkey(self, ev):
         if not self._onsearch: return False
@@ -189,8 +163,6 @@ class ItemBrowser:
         elif ev.key == pygame.K_BACKSPACE: self.query = self.query[:-1]; self.refresh(); return True
         elif ev.key == pygame.K_RETURN:    self._onsearch = False; return True
         return False
-        
-        
 
     def ontext(self, text):
         if not self._onsearch: return False
@@ -198,20 +170,13 @@ class ItemBrowser:
         self.refresh()
         return True
 
-
-
-
-
-
-
-
     def render(self, surface, bfont, atlas, items_atlas):
         scale = self.scale
         cpx   = int(self.cell_size * scale)
 
         page = self.scroll // self.rows + 1 if self.rows > 0 else 1
         mp   = self.maxpages()
-        ptxt = bfont.render(f"[N] {page}/{mp} [M]", False, (200, 200, 200))
+        ptxt = bfont.render(f"[N] | [LB] {page}/{mp} [M] | [RB]", False, (200, 200, 200))
         px   = self.grid_x + (self.cols * cpx - ptxt.get_width()) // 2
         surface.blit(ptxt, (px, self.page_y))
 
@@ -233,14 +198,11 @@ class ItemBrowser:
                 icon   = get_itemicon_anim(j, atlas, items_atlas, icsz)
                 scaled = pygame.transform.scale(icon, (icsz, icsz)) if icon.get_width() != icsz else icon
                 surface.blit(scaled, (cx + 1, cy + 1))
-                
-                
 
         srect = pygame.Rect(self.search_x, self.search_y, self.search_w, self.search_h)
         pygame.draw.rect(surface, (0, 0, 0, 140), srect)
         bcol = (200, 200, 200) if self._onsearch else (100, 100, 100)
         pygame.draw.rect(surface, bcol, srect, 1)
-        
 
         if self.query:
             display = self.query + ("_" if self._onsearch else "")
@@ -257,17 +219,12 @@ class ItemBrowser:
         if 0 <= self.hovi < len(visible):
             self.rendertooltip(surface, bfont, visible[self.hovi], pygame.mouse.get_pos())
 
-
-
-
     def applytint(self, icon, tint_color):
         out  = icon.copy().convert_alpha()
         tint = pygame.Surface(out.get_size(), pygame.SRCALPHA)
         tint.fill((*tint_color, 255))
         out.blit(tint, (0, 0), special_flags=pygame.BLEND_RGB_MULT)
         return out
-
-
 
     def rendertooltip(self, surface, bfont, item, pos):
         mx, my = pos

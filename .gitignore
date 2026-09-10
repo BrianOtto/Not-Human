@@ -3,16 +3,13 @@ __pycache__/
 *.pyo
 *.log
 
-# *.pkl
-
-
 server/saves/
 saves/
 content/saves
 content/tools
 versions/
 
-client/launcher.json
+client/launch.json
 client/servers.json
 client/token.bin
 
