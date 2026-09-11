@@ -79,7 +79,7 @@ class VoxelWorld:
         self._scrh = WIN_H
 
         self.screen = pygame.display.set_mode((WIN_W, WIN_H), OPENGL | DOUBLEBUF)
-        pygame.display.set_caption("Kyklophobia")
+        pygame.display.set_caption("Not Human")
         ico = pygame.image.load('icon.ico') 
         pygame.display.set_icon(ico)
         pygame.mouse.set_visible(False)

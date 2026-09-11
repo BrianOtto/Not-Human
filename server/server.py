@@ -22,7 +22,7 @@ def _setup_path():
 
 def argparser():
     from config import SV_PORT, SV_HOST, SEED, SV_MAXONLINE, SV_MOTD
-    p = argparse.ArgumentParser(description="Kyklophobia Dedicated Server")
+    p = argparse.ArgumentParser(description="Not Human Dedicated Server")
     p.add_argument("--host",                  default=SV_HOST)
     p.add_argument("--port",        type=int, default=SV_PORT)
     p.add_argument("--world",                 default="default")
@@ -38,10 +38,6 @@ def argparser():
 
 def banner(args):
     print("""
-⠀⢠⣏⡏⢹⡏⠉⠉⡟⠉⠉⣿⠉⠉⣽⣉⠉⢹⡏⠉⢹⡏⠉⠉⡇⠀⢸⠉⠉⠉⠉⠉⢹⡏⠉⠉⠉⠉⠉⣿⠉⠉⣿⠉⠉⢹⡉⠉⢹⠉⠉⢹⡏⠉⠉⠉⠉⠉⣿⠉⠉⢻⡉⠉⠉⠉⠉⠹⡆⠀
-⠀⡾⠀⠒⠚⢁⣀⣸⠗⠂⠀⠃⠀⠀⣿⠘⠒⠛⢀⣀⣸⠇⠀⢰⣿⠀⢸⠀⠀⢸⠀⠀⢸⡇⠀⠈⠇⠀⠀⣿⠀⠀⠿⠀⠀⢸⡇⠀⠘⡇⠀⠀⣧⠀⠀⠿⠒⢂⣹⡆⠀⢸⡇⠀⠀⠧⠀⠀⢧⠀
-⢠⡇⠀⠀⠀⠀⠀⣿⣿⡇⠀⠀⣿⣿⡇⠀⠀⠀⠀⠀⣸⠀⠀⢸⡿⠀⣼⠀⠀⣸⣀⣀⣸⡇⠀⠀⣤⣤⣤⣿⠀⠀⢠⡄⠀⢸⡇⠀⠀⣷⣀⣀⣻⠀⠀⢠⡄⠀⠘⡇⠀⠀⣿⠀⠀⢠⡄⠀⢸⡄
-⣼⠀⠀⢸⠇⠀⢰⣿⣿⠃⢀⢰⣿⣿⠃⠀⢠⡇⠀⠀⣿⠀⠀⠈⠉⠉⡧⠄⠀⠉⠀⠀⢸⡇⡆⠀⣿⣿⣿⣿⠀⠀⢸⡇⠀⢸⣧⠄⠀⠉⠀⠀⢸⡆⠈⠈⠁⠀⠀⣿⠀⡀⢸⡄⠀⠘⡇⠀⠀⣇
 ⠙⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠏
 ⠀⠈⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠁ D E D I C A T E D  ●  S E R V E R ⠈⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠛⠁⠀⠀⠀
     """)

@@ -66,12 +66,6 @@ def nine_slice(src, tw, th):
         
     return out
 
-
-
-
-
-
-
 class Button:
     def __init__(
         self, x, y, w, h,
@@ -90,7 +84,7 @@ class Button:
 
         norm = widgets.subsurface(pygame.Rect(0, BTN_Y_NORMAL, BTN_SRC_W, BTN_SRC_H)).copy()
         dk   = pygame.Surface((BTN_SRC_W, BTN_SRC_H), pygame.SRCALPHA)
-        dk.fill((0, 0, 0, 160))
+        dk.fill((0, 0, 0, 100))
         norm.blit(dk, (0, 0))
         self._src["off"] = norm
 
@@ -110,12 +104,12 @@ class Button:
             ), self.rect.topleft
         
         )
-        col = DGRAY if not self.enabled else (BLACK if self.hovered else BLACK)
+
+        col = BLACK if not self.enabled else (BLACK if self.hovered else BLACK)
         txt = self.font.render(self.text, False, col)
         tx  = self.rect.x + (self.rect.w - txt.get_width())  // 2
         ty  = self.rect.y + (self.rect.h - txt.get_height()) // 2
         surf.blit(txt, (tx, ty))
-        
 
     def clk(self, mx, my):
         return self.enabled and self.rect.collidepoint(mx, my)
@@ -144,7 +138,6 @@ class Icon:
         ix  = self.rect.x + (self.rect.w - icon.get_width())  // 2
         iy  = self.rect.y + (self.rect.h - icon.get_height()) // 2
         surf.blit(icon, (ix, iy))
-        
 
     def clk(self, mx, my):
         clicked = self.enabled and self.rect.collidepoint(mx, my)
@@ -188,7 +181,6 @@ class TextInput:
         self.max_len = max_len
         self.active  = False
         self._blink  = 0
-        
 
         if widgets:
             bg = widgets.subsurface(pygame.Rect(0, BTN_Y_NORMAL, BTN_SRC_W, BTN_SRC_H)).copy()
@@ -200,9 +192,6 @@ class TextInput:
         else:
             self._bg = None
 
-
-
-
     def draw(self, surf):
         if self.label:
             lbl = self.font.render(self.label, False, GRAY)
@@ -212,23 +201,17 @@ class TextInput:
             surf.blit(nine_slice(self._bg, self.rect.w, self.rect.h), self.rect.topleft)
             if self.active:
                 pygame.draw.rect(surf, WHITE, self.rect, 2)
-                
         else:
             bgc = (60, 60, 80) if self.active else (40, 40, 50)
             bd  = WHITE if self.active else GRAY
             pygame.draw.rect(surf, bgc, self.rect)
             pygame.draw.rect(surf, bd,  self.rect, 2)
-            
-            
 
         self._blink = (self._blink + 1) % 60
         cur = "_" if self.active and self._blink < 30 else ""
         txt = self.font.render(self.text + cur, False, WHITE)
         ty  = self.rect.y + (self.rect.h - txt.get_height()) // 2
         surf.blit(txt, (self.rect.x + 6, ty))
-        
-        
-        
 
     def onevent(self, ev):
         if ev.type == pygame.MOUSEBUTTONDOWN or ev.type == pygame.JOYBUTTONDOWN:
@@ -247,9 +230,6 @@ class TextInput:
             if len(self.text) < self.max_len: self.text += ev.text
 
         return None
-
-
-
 
 class ListWidget:
     def __init__(
