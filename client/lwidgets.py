@@ -276,10 +276,6 @@ class ListWidget:
 
         self.entry_w = 360 * GS
         self.entry_x = (WIN_W - self.entry_w) // 2
-        
-        
-        
-        
 
         self._arrows = {}
         if ss_surf:
@@ -294,7 +290,6 @@ class ListWidget:
                 sy = row * SS_CELL
                 self._arrows[('play', row)] = ss_surf.subsurface(
                     pygame.Rect(16, sy + 5, 14, 22)).copy()
-                    
 
         self.arrow_w = 11
         self.arrow_h = 7
@@ -306,22 +301,16 @@ class ListWidget:
             self._sb_src = wd_surf.subsurface(
                 pygame.Rect(0, BTN_Y_NORMAL, BTN_SRC_W, BTN_SRC_H)).copy()
 
-
-
-
-
     def set_items(self, items):
         self.items    = list(items)
         self.selected = -1
         self.scroll   = 0
 
-
-
-    def _total_h(self):    return LIST_ITEM_PAD + len(self.items) * ENTRY_H
-    def _max_scroll(self): return max(0, self._total_h() - self.h)
-
-
-
+    def _total_h(self):
+        return LIST_ITEM_PAD + len(self.items) * ENTRY_H
+    
+    def _max_scroll(self):
+        return max(0, self._total_h() - self.h)
 
     def _sb_bar(self):
         if self._total_h() <= self.h: return None
@@ -329,7 +318,6 @@ class ListWidget:
         ms = self._max_scroll()
         by = self.y + int(self.scroll / max(1, ms) * (self.h - bh))
         return by, bh
-
 
     def update(self, mx, my):
         self.hovered    = -1
@@ -343,8 +331,6 @@ class ListWidget:
                 rel = (my - self.drag_off - self.y) / max(1, tk)
                 self.scroll = max(0, min(int(rel * self._max_scroll()), self._max_scroll()))
             return
-            
-            
 
         if self.x <= mx < self.x + self.w and self.y <= my < self.y + self.h:
             rel_y = my - self.y - LIST_ITEM_PAD + self.scroll
@@ -363,9 +349,6 @@ class ListWidget:
                 elif ix <= mx < ix + ICON_SZ and iy <= my < iy + ICON_SZ:
                     self.hover_zone = "icon"
 
-
-
-
     def _onclick(self, mx, my):
         sb = self._sb_bar()
 
@@ -381,8 +364,6 @@ class ListWidget:
                 self.scroll = max(0, min(int(rel * self._max_scroll()), self._max_scroll()))
                 return False
 
-
-
         if self.hovered >= 0:
             if self.hover_zone == "arrow_up" and self.hovered > 0:
                 i = self.hovered
@@ -390,7 +371,6 @@ class ListWidget:
                 if   self.selected == i:   self.selected -= 1
                 elif self.selected == i-1: self.selected += 1
                 return "reorder"
-
 
             elif self.hover_zone == "arrow_dn" and self.hovered < len(self.items) - 1:
                 i = self.hovered
@@ -403,18 +383,10 @@ class ListWidget:
                 self.selected = self.hovered
                 return True
 
-
-
         return False
 
-
-
-
-
-
-
-
-    def on_release(self): self.dragging_sb = False
+    def on_release(self):
+        self.dragging_sb = False
 
     def ondblclk(self, mx, my):
         return self.hovered >= 0 and self.hovered == self.selected
@@ -426,15 +398,10 @@ class ListWidget:
         if 0 <= self.selected < len(self.items): return self.items[self.selected]
         return None
 
-
-
-
-
-
     def draw(self, surf, render_fn):
-        bg = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
-        bg.fill((0, 0, 0, 160))
-        surf.blit(bg, (self.x, self.y))
+        # bg = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
+        # bg.fill((0, 0, 0, 160))
+        # surf.blit(bg, (self.x, self.y))
 
         clip_prev = surf.get_clip()
         surf.set_clip(pygame.Rect(self.x, self.y, self.w, self.h))
@@ -456,14 +423,10 @@ class ListWidget:
 
             ix = ex + ENTRY_PAD
             iy = ey + ENTRY_PAD
-            
-            
 
             if self.ico_surf:
                 ic = pygame.transform.scale(self.ico_surf, (ICON_SZ, ICON_SZ))
                 surf.blit(ic, (ix, iy))
-                
-                
 
             if i == self.hovered and self.ss_surf:
                 half = ICON_SZ // 2
@@ -476,7 +439,6 @@ class ListWidget:
                     rx = ix + half + (half - pw*2) // 2
                     ry = iy + (ICON_SZ - ph*2) // 2
                     surf.blit(pb, (rx, ry))
-                    
 
                 aw, ah = self.arrow_w * 2, self.arrow_h * 2
                 ax     = ix + (half - aw) // 2
@@ -497,8 +459,6 @@ class ListWidget:
                         pygame.transform.scale(dsr, (aw, ah)),
                         (ax, ey + hf + (hf - ah) // 2)
                     )
-                    
-                    
 
             tx = ix + ICON_SZ + ENTRY_PAD + 10
             tw = ew - (tx - ex)
@@ -506,9 +466,9 @@ class ListWidget:
 
         surf.set_clip(clip_prev)
 
-        gh = 8 * GS
-        drawgrad(surf, 0, self.y, WIN_W, gh, 200, 0)
-        drawgrad(surf, 0, self.y + self.h - gh, WIN_W, gh, 0,   200)
+        # gh = 8 * GS
+        # drawgrad(surf, 0, self.y, WIN_W, gh, 200, 0)
+        # drawgrad(surf, 0, self.y + self.h - gh, WIN_W, gh, 0,   200)
 
         sb = self._sb_bar()
         if sb:
