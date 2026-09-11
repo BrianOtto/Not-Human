@@ -26,8 +26,8 @@ class UIManager:
         self.ctx = ctx
         self.screen_sz = screen_sz
 
-        self.bfont     = Font(FONTPATH, scale=SCL_FONT)
-        self.item_font = Font(FONTPATH, scale=SCL_HUD)
+        self.bfont     = pygame.font.Font(os.path.join("ui", os.path.join("fonts", "OpenSans-Bold.ttf")), 16)
+        self.item_font = self.bfont
 
         self.prog = shaders.prog(self.ctx, "ui.vert", "ui.frag")
 
@@ -118,8 +118,8 @@ class UIManager:
         
         self.surface.fill((0, 0, 0, 0))
 
-        yoff = 5
-        xoff = 5
+        yoff = 10
+        xoff = 10
         lh   = self.bfont.get_height() + 2
 
 
@@ -147,11 +147,11 @@ class UIManager:
             
 
         if keybinds:
-            yoff = 5
+            yoff = 10
             for i in keybinds:
                 txt = self.bfont.render(i, False, (255, 255, 255))
                 w, h = txt.get_size()
-                x = self.screen_sz[0] - w - 5
+                x = self.screen_sz[0] - w - 10
                 pygame.draw.rect(
                     self.surface, (100, 100, 100, 160), 
                     pygame.Rect(x - 2, yoff - 2, w + 4, h + 4)
@@ -310,7 +310,7 @@ class UIManager:
 
         if stack.count > 1:
             txt  = self.item_font.render(str(stack.count), False, (255, 255, 255))
-            soff = self.item_font.scale
+            soff = 1 # self.item_font.scale
             self.surface.blit( txt, (
                 mx + sz/2 - txt.get_width() + 2*soff,
                 my + sz/2 - txt.get_height() + 2*soff
@@ -347,7 +347,7 @@ class UIManager:
 
                 if j.count > 1:
                     txt  = self.item_font.render(str(j.count), False, (255, 255, 255))
-                    soff = self.item_font.scale
+                    soff = 1 # self.item_font.scale
                     tx   = scrx + sz - txt.get_width() + 2 * soff
                     ty   = scry + sz - txt.get_height() + 2 * soff
                     self.surface.blit(txt, (tx, ty))

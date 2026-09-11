@@ -1,3 +1,4 @@
+import os
 import pygame
 import moderngl
 import numpy as np
@@ -17,7 +18,7 @@ class HUDManager:
         self.scale       = SCL_HUD
         self.font_scale  = SCL_FONT
 
-        self.bfont = Font(FONTPATH, scale=SCL_HUD)
+        self.bfont = pygame.font.Font(os.path.join("ui", os.path.join("fonts", "OpenSans-Bold.ttf")), 16)
 
         self.ico_y     = 46
         self.cross_pos = (0, 46)
@@ -276,7 +277,7 @@ class HUDManager:
                 if count > 1:
                     txt    = self.bfont.render(str(count), False, (255, 255, 255))
                     tw, th = txt.get_size()
-                    soff   = self.bfont.scale
+                    soff   = 1 # self.bfont.scale
                     self.surface.blit(txt, (ix + isz - tw + 2*soff, iy + isz - th + 2*soff))
 
         slot = p._slot

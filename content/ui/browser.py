@@ -176,7 +176,7 @@ class ItemBrowser:
 
         page = self.scroll // self.rows + 1 if self.rows > 0 else 1
         mp   = self.maxpages()
-        ptxt = bfont.render(f"[N] | [LB] {page}/{mp} [M] | [RB]", False, (200, 200, 200))
+        ptxt = bfont.render(f"[N] or [LB]  <  {page}/{mp}  >  [M] or [RB]", False, (200, 200, 200))
         px   = self.grid_x + (self.cols * cpx - ptxt.get_width()) // 2
         surface.blit(ptxt, (px, self.page_y))
 

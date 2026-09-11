@@ -3,15 +3,13 @@ import os, sys
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 ROOT         = os.path.dirname(BASE_DIR)
 CONTENT_DIR  = os.path.join(ROOT, "content")
-
+FONTS_DIR    = os.path.join(CONTENT_DIR, os.path.join("ui", "fonts"))
 LAUNCH_CONF  = os.path.join(BASE_DIR, "launch.json")
 RESOURCE_DIR = os.path.join(BASE_DIR, "resourcepacks")
 UI_DIR       = os.path.join(BASE_DIR, "ui")
 SERVERS_FILE = os.path.join(BASE_DIR, "servers.json")
 NAME_FILE    = os.path.join(BASE_DIR, "name.txt")
 SAVES_DIR    = os.path.join(BASE_DIR, "saves")
-
-FONTS_DIR    = os.path.join(UI_DIR, "fonts")
 
 sys.path.insert(0, CONTENT_DIR)
 from version import __VERSION__
