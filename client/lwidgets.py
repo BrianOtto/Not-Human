@@ -181,20 +181,11 @@ class TextInput:
         self.max_len = max_len
         self.active  = False
         self._blink  = 0
-
-        if widgets:
-            bg = widgets.subsurface(pygame.Rect(0, BTN_Y_NORMAL, BTN_SRC_W, BTN_SRC_H)).copy()
-            dk = pygame.Surface((BTN_SRC_W, BTN_SRC_H), pygame.SRCALPHA)
-            dk.fill((0, 0, 0, 160))
-            bg.blit(dk, (0, 0))
-            self._bg = bg
-            
-        else:
-            self._bg = None
+        self._bg = None
 
     def draw(self, surf):
         if self.label:
-            lbl = self.font.render(self.label, False, GRAY)
+            lbl = self.font.render(self.label, False, WHITE)
             surf.blit(lbl, (self.rect.x, self.rect.y - lbl.get_height() - 4))
 
         if self._bg:
@@ -202,14 +193,14 @@ class TextInput:
             if self.active:
                 pygame.draw.rect(surf, WHITE, self.rect, 2)
         else:
-            bgc = (60, 60, 80) if self.active else (40, 40, 50)
-            bd  = WHITE if self.active else GRAY
+            bgc = WHITE if self.active else GRAY
+            bd  = GRAY if self.active else GRAY
             pygame.draw.rect(surf, bgc, self.rect)
             pygame.draw.rect(surf, bd,  self.rect, 2)
 
         self._blink = (self._blink + 1) % 60
         cur = "_" if self.active and self._blink < 30 else ""
-        txt = self.font.render(self.text + cur, False, WHITE)
+        txt = self.font.render(self.text + cur, False, BLACK)
         ty  = self.rect.y + (self.rect.h - txt.get_height()) // 2
         surf.blit(txt, (self.rect.x + 6, ty))
 

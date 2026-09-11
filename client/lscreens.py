@@ -310,7 +310,7 @@ class WorldListScreen(Screen):
         if not sel: return
         self.L.setscreen(ConfirmScreen(
             self.L,
-            f"Delete world '{sel['nm']}'?", "This cannot be undone!",
+            f"Delete the \"{sel['nm']}\" World ?", "This cannot be undone !",
             on_yes=lambda: self._dodel(sel["nm"]),
             on_no =lambda: self.L.setscreen(WorldListScreen(self.L))
         ))
@@ -325,8 +325,8 @@ class WorldListScreen(Screen):
         if not sel: return
         self.L.setscreen(ConfirmScreen(
             self.L,
-            f"Re-create world '{sel['nm']}'?",
-            "All data will be deleted and a fresh world created!",
+            f"Re-Create the \"{sel['nm']}\" World ?",
+            "All data will be deleted and a fresh world will be created !",
             on_yes=lambda: self._dorec(sel["nm"]),
             on_no =lambda: self.L.setscreen(WorldListScreen(self.L))
         ))
@@ -363,18 +363,18 @@ class CreateWorldScreen(Screen):
         super().__init__(launch)
         cx = WIN_W // 2; IW = 300 * GS
         self.ti_name = TextInput(
-            cx - IW//2, 110*GS, IW, 18*GS, self.font,
+            cx - IW//2, 58*GS, IW, 18*GS, self.font,
             self.L.wd_surf, "World Name", "New World"
         )
         self.ti_name.active = True
         self.ti_seed = TextInput(
-            cx - IW//2, 160*GS, IW, 18*GS, self.font,
-            self.L.wd_surf, "Seed (default=12345)"
+            cx - IW//2, 108*GS, IW, 18*GS, self.font,
+            self.L.wd_surf, "Seed (default = 12345)"
         )
         self.inputs = [self.ti_name, self.ti_seed]
         gc = GUI_W // 2
-        self.btn_create = self.btn_gui(gc - 154, 210, 150, "Create and Play")
-        self.btn_cancel = self.btn_gui(gc + 4,   210, 150, "Cancel")
+        self.btn_create = self.btn_gui(gc - 154, 158, 150, "Create and Play")
+        self.btn_cancel = self.btn_gui(gc + 4,   158, 150, "Cancel")
 
     def onevent(self, events):
         for e in events:
@@ -410,7 +410,7 @@ class CreateWorldScreen(Screen):
 
     def draw(self, surf):
         t = self.font.render("Create New World", False, WHITE)
-        surf.blit(t, ((WIN_W - t.get_width()) // 2, 60 * GS))
+        surf.blit(t, ((WIN_W - t.get_width()) // 2, 8 * GS))
         super().draw(surf)
 
 
@@ -422,14 +422,14 @@ class EditWorldScreen(Screen):
         self.info = info
         cx = WIN_W // 2; IW = 300 * GS
         self.ti_name = TextInput(
-            cx - IW//2, 140*GS, IW, 18*GS, self.font,
+            cx - IW//2, 68*GS, IW, 18*GS, self.font,
             self.L.wd_surf, "World Name", info["nm"]
         )
         self.ti_name.active = True
         self.inputs = [self.ti_name]
         gc = GUI_W // 2
-        self.btn_done   = self.btn_gui(gc - 154, 190, 150, "Done")
-        self.btn_cancel = self.btn_gui(gc + 4,   190, 150, "Cancel")
+        self.btn_done   = self.btn_gui(gc - 154, 118, 150, "Done")
+        self.btn_cancel = self.btn_gui(gc + 4,   118, 150, "Cancel")
 
     def onevent(self, events):
         for e in events:
@@ -455,7 +455,7 @@ class EditWorldScreen(Screen):
 
     def draw(self, surf):
         t = self.font.render("Edit World", False, WHITE)
-        surf.blit(t, ((WIN_W - t.get_width()) // 2, 80 * GS))
+        surf.blit(t, ((WIN_W - t.get_width()) // 2, 8 * GS))
         super().draw(surf)
 
 
@@ -663,14 +663,14 @@ class DirectConnectScreen(Screen):
         super().__init__(launch)
         cx = WIN_W // 2; IW = 300 * GS
         self.ti_addr = TextInput(
-            cx - IW//2, 150*GS, IW, 18*GS, self.font,
+            cx - IW//2, 68*GS, IW, 18*GS, self.font,
             self.L.wd_surf, "Server Address", "localhost:25250"
         )
         self.ti_addr.active = True
         self.inputs = [self.ti_addr]
         gc = GUI_W // 2
-        self.btn_join   = self.btn_gui(gc - 154, 200, 150, "Join Server")
-        self.btn_cancel = self.btn_gui(gc + 4,   200, 150, "Cancel")
+        self.btn_join   = self.btn_gui(gc - 154, 118, 150, "Join Server")
+        self.btn_cancel = self.btn_gui(gc + 4,   118, 150, "Cancel")
 
     def onevent(self, events):
         for e in events:
@@ -692,7 +692,7 @@ class DirectConnectScreen(Screen):
 
     def draw(self, surf):
         t = self.font.render("Direct Connect", False, WHITE)
-        surf.blit(t, ((WIN_W - t.get_width()) // 2, 90 * GS))
+        surf.blit(t, ((WIN_W - t.get_width()) // 2, 8 * GS))
         super().draw(surf)
 
 
@@ -705,20 +705,20 @@ class AddEditServerScreen(Screen):
         self.editing = info is not None
         cx = WIN_W // 2; IW = 300 * GS
         self.ti_name = TextInput(
-            cx - IW//2, 110*GS, IW, 18*GS, self.font,
+            cx - IW//2, 58*GS, IW, 18*GS, self.font,
             self.L.wd_surf, "Server Name",
             info["name"] if info else "Minecraft Server"
         )
         self.ti_name.active = True
         self.ti_addr = TextInput(
-            cx - IW//2, 160*GS, IW, 18*GS, self.font,
+            cx - IW//2, 108*GS, IW, 18*GS, self.font,
             self.L.wd_surf, "Server Address",
             info["address"] if info else "localhost:25250"
         )
         self.inputs = [self.ti_name, self.ti_addr]
         gc = GUI_W // 2
-        self.btn_done   = self.btn_gui(gc - 154, 210, 150, "Done")
-        self.btn_cancel = self.btn_gui(gc + 4,   210, 150, "Cancel")
+        self.btn_done   = self.btn_gui(gc - 154, 158, 150, "Done")
+        self.btn_cancel = self.btn_gui(gc + 4,   158, 150, "Cancel")
 
     def onevent(self, events):
         for e in events:
@@ -751,7 +751,7 @@ class AddEditServerScreen(Screen):
 
     def draw(self, surf):
         t = self.font.render("Edit Server" if self.editing else "Add Server", False, WHITE)
-        surf.blit(t, ((WIN_W - t.get_width()) // 2, 60 * GS))
+        surf.blit(t, ((WIN_W - t.get_width()) // 2, 8 * GS))
         super().draw(surf)
 
 
@@ -764,9 +764,8 @@ class ConfirmScreen(Screen):
         self.line2  = line2
         self.on_yes = on_yes
         self.on_no  = on_no
-        cx = GUI_W // 2
-        self.btn_yes = self.btn_gui(cx - 104, 210, 100, "Confirm")
-        self.btn_no  = self.btn_gui(cx + 4,   210, 100, "Cancel")
+        self.btn_yes = None
+        self.btn_no  = None
 
     def onevent(self, events):
         for e in events:
@@ -786,12 +785,10 @@ class ConfirmScreen(Screen):
 
         dw, dh = 325*GS, 110*GS
         dx = (WIN_W - dw) // 2
-        dy = (WIN_H - dh) // 2
+        dy = (WIN_H - dh) // 4
 
-        bg = self.widgets.subsurface(pygame.Rect(0, BTN_Y_NORMAL, BTN_SRC_W, BTN_SRC_H)).copy()
-        dk = pygame.Surface((BTN_SRC_W, BTN_SRC_H), pygame.SRCALPHA)
-        dk.fill((0, 0, 0, 160))
-        bg.blit(dk, (0, 0))
+        bg = pygame.Surface((BTN_SRC_W, BTN_SRC_H), pygame.SRCALPHA)
+        bg.fill((192, 192, 192, 30))
         surf.blit(nine_slice(bg, dw, dh), (dx, dy))
 
         t1 = self.font.render(self.line1, False, YELLOW)
@@ -799,6 +796,10 @@ class ConfirmScreen(Screen):
         t2 = self.font.render(self.line2, False, WHITE)
         surf.blit(t2, (dx + (dw - t2.get_width())//2, dy + 15*GS + t1.get_height() + 6*GS))
 
+        cx = GUI_W // 2
+        self.btn_yes = self.btn_gui(cx - 104, dy + 15, 100, "Confirm")
+        self.btn_no  = self.btn_gui(cx + 4,   dy + 15, 100, "Cancel")
+        
         super().draw(surf)
 
 
