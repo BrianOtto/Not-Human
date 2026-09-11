@@ -59,8 +59,6 @@ class UIManager:
         self.inv_tex.filter = (moderngl.NEAREST, moderngl.NEAREST)
 
         self.atlas = pygame.image.load(_respath.atlas_block()).convert_alpha()
-        
-        
 
         ipath = _respath.atlas_items()
         if os.path.exists(ipath):
@@ -70,10 +68,6 @@ class UIManager:
 
         self.inv_model = None
         self.invbrwser = ItemBrowser()
-        
-        
-        
-        
 
     def itemicon(self, u, v, size=16, atlas_type="blocks"):
         source = self.atlas if atlas_type == "blocks" else self.items_atlas
@@ -92,10 +86,6 @@ class UIManager:
             return s
 
         return source.subsurface(pygame.Rect(rx, ry, 16, 16))
-        
-        
-        
-        
 
     def resize(self, w, h):
         self.screen_sz = (w, h)
@@ -109,19 +99,14 @@ class UIManager:
         if len(self.chat) > self.max_chat * 2:
             self.chat = self.chat[-self.max_chat:]
 
-    def render(
-            self, stats, 
-            nametags=None, keybinds=None, renderinv=False, 
-            inv=None, pmodel=None, chat_input=None,
-            tablist=None
-    ):
+    def render(self, stats, nametags=None, keybinds=None, renderinv=False, 
+        inv=None, pmodel=None, chat_input=None, tablist=None):
         
         self.surface.fill((0, 0, 0, 0))
 
         yoff = 10
         xoff = 10
         lh   = self.bfont.get_height() + 2
-
 
         lines = []
         if renderinv: lines = CTRLS_TXT
@@ -131,20 +116,6 @@ class UIManager:
                 
         elif isinstance(stats, list): lines = stats
         else: lines = [str(stats)]
-        
-        
-
-        for i in lines:
-            txt = self.bfont.render(i, False, (255, 255, 255))
-            w, h = txt.get_size()
-            pygame.draw.rect(
-                self.surface, (100, 100, 100, 160), 
-                pygame.Rect(xoff - 2, yoff - 2, w + 4, h + 4)
-            )
-            self.surface.blit(txt, (xoff, yoff))
-            yoff += lh
-            
-            
 
         if keybinds:
             yoff = 10
@@ -157,18 +128,11 @@ class UIManager:
                     pygame.Rect(x - 2, yoff - 2, w + 4, h + 4)
                 )
                 self.surface.blit(txt, (x, yoff))
-                yoff += lh
-                
-                
+                yoff += lh   
 
         now    = time.time()
         chat_x = 5
         chat_y = self.screen_sz[1] - 5
-        
-        
-        
-        
-        
 
         if chat_input is not None:
             txt = self.bfont.render(chat_input + "_", False, (255, 255, 255))
@@ -179,8 +143,6 @@ class UIManager:
             pygame.draw.rect(self.surface, (100, 100, 100, 255), bgrct, 1)
             self.surface.blit(txt, (chat_x, chat_y - h))
             chat_y -= (bgh + 2)
-            
-            
 
         vis = []
         if chat_input is not None:
@@ -199,10 +161,7 @@ class UIManager:
                         
                         
                     else: alpha = 255
-                    vis.append((msg, color, alpha))
-                    
-                    
-                    
+                    vis.append((msg, color, alpha))       
 
         for msg, color, alpha in reversed(vis[-self.max_chat:]):
             txt = self.bfont.render(msg, False, color)
@@ -241,16 +200,25 @@ class UIManager:
             self.rendtab(tablist)
 
         ix, iy, iscl = 0, 0, SCL_HUD
-        
-        
-        
-        
 
         if renderinv:
             dim = pygame.Surface(self.screen_sz, pygame.SRCALPHA)
             dim.fill((0, 0, 0, 150))
             self.surface.blit(dim, (0, 0))
 
+            xoff = 10
+            yoff = 15
+
+            for i in lines:
+                txt = self.bfont.render(i, False, (255, 255, 255))
+                w, h = txt.get_size()
+                pygame.draw.rect(
+                    self.surface, (100, 100, 100, 160), 
+                    pygame.Rect(xoff - 2, yoff - 2, w + 4, h + 4)
+                )
+                self.surface.blit(txt, (xoff, yoff))
+                yoff += lh
+                
             scale = SCL_HUD
             iscl  = scale
             w, h  = self.inv_w * scale, self.inv_h * scale

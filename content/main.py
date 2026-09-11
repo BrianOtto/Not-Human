@@ -1164,7 +1164,7 @@ class VoxelWorld:
             self.ui.render(
                 stats if self.showdebug else [],
                 nametags  = [],
-                keybinds  = keybinds if self.showhud else None,
+                keybinds  = keybinds if self.showhud and not self.oninv else None,
                 renderinv = self.oninv,
                 inv = self.p.inv, 
                 pmodel = self.pmodel,
